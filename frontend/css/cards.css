@@ -91,10 +91,10 @@
 
 .bulb-grid {
   flex: 1;
+  max-height: 440px;      /* flisene fyller plassen, men blir ikke enorme */
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: minmax(96px, 200px);
-  align-content: start;
+  grid-auto-rows: minmax(80px, 1fr);
   gap: var(--gap);
 }
 .bulb-tile {
@@ -104,7 +104,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  min-height: 96px;
+  min-height: 80px;
 }
 .bulb-tile.is-on { border-color: rgba(245,185,66,.45); }
 .bulb-tile.is-unreachable { border-style: dashed; }
@@ -162,6 +162,8 @@
    Buss (cards/bus.js)
    ====================================================================== */
 .bus { height: 100%; }
+/* Ton ut nederst så det synes at lista fortsetter (kortet kan rulles) */
+[data-card="bus"] .card-body { mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent); }
 .dep-list { display: flex; flex-direction: column; }
 .dep-row {
   display: grid;
@@ -253,3 +255,19 @@
 .wd-label { font-weight: 600; white-space: nowrap; }
 .wd-temp { font-weight: 700; white-space: nowrap; }
 .wd-precip { color: var(--info); text-align: right; white-space: nowrap; min-width: 56px; }
+
+/* ======================================================================
+   Klokke (cards/clock.js)
+   ====================================================================== */
+.card-headerless .card-header { display: none; }
+.card-headerless .card-body { padding-top: 18px; }
+.clock {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.clock-time { font-size: 3.6rem; font-weight: 800; line-height: 1; letter-spacing: .02em; }
+.clock-date { color: var(--muted); font-size: 1.1rem; }

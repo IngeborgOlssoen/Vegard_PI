@@ -46,10 +46,10 @@ frontend/
     app.js             bygger rutenettet, oppdaterer kortene, håndterer feil
     api.js             fetch med tidsavbrudd og norske feilmeldinger
     cards/             ett kort per fil: lights.js, bus.js, weather.js, clock.js
-    components/        sheet.js (ark/dialog), toast.js, icons.js
+    components/        sheet.js (ark/dialog), toast.js, icons.js, color.js
 config/
   config.example.yaml  mal → kopier til config.yaml
-  scenes.json          lys-scener (kan endres for hånd eller fra skjermen)
+  scenes.example.json  mal → blir til scenes.json første gang appen starter
 scripts/               hjelpeskript: finn pærer, holdeplass og koordinater
 pi/                    installasjon, systemd-tjeneste og kiosk-skript for Pi-en
 ```
@@ -77,7 +77,8 @@ python -m app --reload
 Åpne <http://localhost:8000>. Malen har `lights.simulate: true`, så lyskortet
 virker med falske pærer uten at du har WiZ-pærer i nærheten. Buss og vær
 henter ekte data med en gang (holdeplassen og stedet i malen er Oslo, bytt
-dem i `config.yaml`).
+dem i `config.yaml`). Sett `weather.user_agent` til noe med din e-post
+først, ellers kan MET avvise kallene.
 
 Tester: `cd backend && pytest`.
 
@@ -110,7 +111,8 @@ finner appen pæra igjen selv om IP-en endrer seg.
 
 ### Scener
 
-Scenene ligger i `config/scenes.json` og kan endres på to måter:
+Scenene ligger i `config/scenes.json` (lages fra `scenes.example.json` første
+gang appen starter) og kan endres på to måter:
 
 - **I fila.** Hver scene har en `default` (gjelder alle pærer) og valgfrie
   `bulbs` som overstyrer enkeltpærer. Fila leses på nytt automatisk.
@@ -181,9 +183,10 @@ Skriptet gjør dette (og kan kjøres flere ganger uten skade):
 3. Kopierer `config.example.yaml` til `config.yaml` hvis den mangler.
 4. Installerer og starter systemd-tjenesten `hjemmepanel` (backend), med
    automatisk omstart ved feil.
-5. Legger `pi/kiosk.sh` i autostart for skrivebordet (labwc eller Wayfire), slik
-   at Chromium åpner panelet i fullskjerm ved oppstart. Skriptet venter til
-   backend svarer, og starter Chromium på nytt hvis den skulle dø.
+5. Legger `pi/kiosk.sh` i autostart for skrivebordet (labwc, Wayfire eller
+   LXDE), slik at Chromium åpner panelet i fullskjerm ved oppstart, og slår på
+   automatisk innlogging. Skriptet venter til backend svarer, og starter
+   Chromium på nytt hvis den skulle dø.
 6. Skrur av skjermsparer/blanking.
 
 Etterpå: rediger `config/config.yaml` (sett `simulate: false`, fyll inn pærer,
@@ -216,8 +219,10 @@ kjøre i bakgrunnen.
 
 1. Lag `frontend/js/cards/mittkort.js` som eksporterer et objekt med
    `id`, `title`, `refreshMs`, `mount(body, ctx)` og `refresh(ctx)`.
-   Se `clock.js` for det minste mulige eksempelet og `bus.js` for et kort som
-   henter data fra backend.
+   Kontrakten er beskrevet øverst i `frontend/js/cards/index.js`. Se
+   `clock.js` for det minste mulige eksempelet og `bus.js` for et kort som
+   henter data fra backend. Kaster `refresh()` en feil, vises meldingen i
+   kortet og forrige innhold blir stående.
 2. Registrer det i `frontend/js/cards/registry.js`.
 3. Legg id-en inn i `dashboard.layout` i `config.yaml`.
 
@@ -242,6 +247,18 @@ Handlinger: `scene`, `toggle_all`, `all_on`, `all_off`, `toggle_bulb`.
 Koden ligger i `backend/app/buttons.py` og bruker `gpiozero`, som følger med
 Raspberry Pi OS. Er `gpiozero` ikke installert, logges en advarsel og resten
 av panelet virker som før.
+
+## Slik håndteres feil
+
+- Hvert kort har sin egen oppdateringsløkke. Feiler ett kort, viser det en rød
+  melding øverst og beholder forrige innhold; de andre kortene merker ingenting.
+- Værkortet viser forrige varsel med en advarsel hvis MET ikke svarer.
+  Busskortet teller ned lokalt til nettet er tilbake.
+- En pære som ikke svarer vises med stiplet ramme og «Ingen kontakt», og
+  panelet leter etter den igjen på nettet hvis `mac` er satt.
+- Mister skjermen kontakt med backend i over ett minutt, dekkes den av
+  «Ingen kontakt med serveren» til den svarer igjen. systemd starter backend
+  på nytt, og `kiosk.sh` starter Chromium på nytt.
 
 ## Feilsøking
 

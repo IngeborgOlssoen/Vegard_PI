@@ -5,6 +5,7 @@
      id: 'bus',                 // id-en som brukes i layout
      title: 'Buss',             // overskrift på kortet
      refreshMs: 30000,          // hvor ofte refresh() kalles (0 = aldri)
+     headerless: false,         // (valgfritt) true = ingen overskrift/statuslinje
      mount(body, ctx) {},       // bygg innholdet én gang. ctx = { config, setStatus, setError, setTitle, showToast }
      async refresh(ctx) {},     // hent nye data. Kast en Error med norsk melding ved feil.
                                 // Kan returnere { warning: 'tekst' } for å vise en advarsel.

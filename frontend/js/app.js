@@ -61,7 +61,7 @@ function buildGrid(config) {
 
 function createCardElement(id, card) {
   const el = document.createElement('section');
-  el.className = 'card';
+  el.className = 'card' + (card?.headerless ? ' card-headerless' : '');
   el.style.gridArea = id;
   el.dataset.card = id;
   el.innerHTML = `

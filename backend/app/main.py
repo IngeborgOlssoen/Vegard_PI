@@ -6,6 +6,7 @@ Frontend:  http://localhost:8000/
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,7 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
+from app.buttons import ButtonManager
 from app.config import FRONTEND_DIR, AppConfig, load_config
 from app.errors import install_error_handlers
 from app.routers import bus, lights, system, weather
@@ -39,7 +41,10 @@ def create_app(config: AppConfig) -> FastAPI:
         app.state.bus = BusService(config.bus, app.state.http)
         app.state.weather = WeatherService(config.weather, app.state.http)
         await app.state.lights.start()
+        app.state.buttons = ButtonManager(config.buttons, app.state.lights, asyncio.get_running_loop())
+        app.state.buttons.start()
         yield
+        app.state.buttons.stop()
         await app.state.lights.stop()
         await app.state.http.aclose()
         log.info("Hjemmepanel stopper")

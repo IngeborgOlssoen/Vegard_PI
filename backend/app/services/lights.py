@@ -360,7 +360,11 @@ class LightService:
         """Utfører en kommando på én pære og returnerer ny tilstand."""
         bulb = self._get(bulb_id)
         async with self._locks[bulb_id]:
-            await bulb.apply(cmd)          # kaster ServiceError hvis pæra ikke svarer
+            try:
+                await bulb.apply(cmd)
+            except ServiceError as exc:    # pæra svarte ikke – merk den og si fra til den som spurte
+                self._mark_unreachable(bulb, exc.message)
+                raise
             await asyncio.sleep(0.15)      # pærene trenger et lite øyeblikk før de rapporterer ny tilstand
             return await self._refresh(bulb)
 
@@ -373,9 +377,6 @@ class LightService:
             first = failures[0]
             msg = first.message if isinstance(first, ServiceError) else str(first)
             raise ServiceError(f"Ingen av pærene svarte. {msg}", code="all_unreachable")
-        for bid, res in zip(self.bulbs, results):
-            if isinstance(res, ServiceError):
-                self._mark_unreachable(self.bulbs[bid], res.message)
         return self.states()
 
     async def toggle_bulb(self, bulb_id: str) -> BulbState:

@@ -18,6 +18,7 @@ dashboard:
 
 lights:
   # true = simulerte pærer i minnet, fint for å utvikle og teste på PC.
+  # (Sett ip: unreachable på en simulert pære for å se hvordan "ingen kontakt" vises.)
   simulate: true
   timeout_seconds: 3
   poll_interval_seconds: 10

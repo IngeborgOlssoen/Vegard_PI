@@ -1,0 +1,25 @@
+# systemd-tjeneste for Hjemmepanel-backend.
+# __DIR__ og __USER__ fylles inn av pi/install.sh, som legger fila i
+# /etc/systemd/system/hjemmepanel.service.
+#
+#   sudo systemctl status hjemmepanel     # kjører den?
+#   sudo systemctl restart hjemmepanel    # etter endringer i config.yaml
+#   journalctl -u hjemmepanel -f          # logg
+
+[Unit]
+Description=Hjemmepanel (backend for dashbordet)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__DIR__/backend
+ExecStart=__DIR__/.venv/bin/python -m app
+# Start alltid på nytt hvis den stopper, uansett grunn
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

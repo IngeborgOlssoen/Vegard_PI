@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +83,14 @@ class ButtonConfig(BaseModel):
     action: Literal["scene", "toggle_all", "all_on", "all_off", "toggle_bulb"]
     scene: str | None = None  # scene-id når action = scene
     bulb: str | None = None  # pære-id når action = toggle_bulb
+
+    @model_validator(mode="after")
+    def _check_target(self):
+        if self.action == "scene" and not self.scene:
+            raise ValueError(f"Knapp på GPIO {self.gpio}: action=scene trenger 'scene: <id>'")
+        if self.action == "toggle_bulb" and not self.bulb:
+            raise ValueError(f"Knapp på GPIO {self.gpio}: action=toggle_bulb trenger 'bulb: <id>'")
+        return self
 
 
 class ButtonsConfig(BaseModel):
