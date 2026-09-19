@@ -343,7 +343,8 @@ class SpotifyService:
             if "Restriction violated" in message:
                 raise ServiceError("Spotify tillater ikke dette akkurat nå (f.eks. å hoppe tilbake i det som spilles)",
                                    code="spotify_restricted")
-            raise ServiceError(f"Spotify svarte med feil (HTTP {resp.status_code}) {message}".strip(),
+            detail = message or resp.text[:120].strip()
+            raise ServiceError(f"Spotify svarte med feil (HTTP {resp.status_code}) {detail}".strip(),
                                code="spotify_http")
         return resp
 
@@ -388,30 +389,35 @@ class SpotifyService:
         return self._playlists
 
     async def playlist_tracks(self, playlist_id: str) -> list[PlaylistTrack]:
-        """Sangene i en spilleliste (inntil 300), mellomlagret i 10 minutter."""
+        """Sangene i en spilleliste (inntil 300), mellomlagret i 10 minutter.
+
+        Spotify har døpt om endepunktet fra /tracks til /items. Nye apper får det nye,
+        eldre apper kan fortsatt ha det gamle, så vi prøver begge."""
         cached = self._tracks.get(playlist_id)
         if cached and time.monotonic() - cached[0] < PLAYLISTS_CACHE_SECONDS:
             return cached[1]
-        fields = "items(track(name,uri,duration_ms,artists(name),album(name,images)),item(name,uri,duration_ms,artists(name),album(name,images))),next,total"
-        pages = []
-        path = f"/playlists/{playlist_id}/tracks"
-        for offset in range(0, 300, 100):
+
+        errors = []
+        for suffix in ("items", "tracks"):
+            pages = []
             try:
-                resp = await self._api("GET", path, params={"limit": 100, "offset": offset, "fields": fields})
+                for offset in range(0, 300, 100):
+                    resp = await self._api("GET", f"/playlists/{playlist_id}/{suffix}",
+                                           params={"limit": 100, "offset": offset})
+                    page = resp.json()
+                    pages.append(page)
+                    if not page.get("next"):
+                        break
             except ServiceError as exc:
-                # Spotify har døpt om endepunktet; prøv det nye navnet én gang
-                if path.endswith("/tracks") and exc.code == "spotify_http" and ("404" in exc.message or "410" in exc.message):
-                    path = f"/playlists/{playlist_id}/items"
-                    resp = await self._api("GET", path, params={"limit": 100, "offset": offset, "fields": fields})
-                else:
-                    raise
-            page = resp.json()
-            pages.append(page)
-            if not page.get("next"):
-                break
-        tracks = parse_playlist_tracks(pages)
-        self._tracks[playlist_id] = (time.monotonic(), tracks)
-        return tracks
+                errors.append(f"/{suffix}: {exc.message}")
+                if exc.code in ("spotify_http", "spotify_restricted"):
+                    continue   # prøv det andre navnet
+                raise
+            tracks = parse_playlist_tracks(pages)
+            self._tracks[playlist_id] = (time.monotonic(), tracks)
+            return tracks
+        raise ServiceError("Spotify ga ikke ut sangene i denne lista (" + "; ".join(errors) + "). "
+                           "Spotify sine egne lister er ikke tilgjengelige for private apper.", code="spotify_http")
 
     # --- styring -------------------------------------------------------------
 

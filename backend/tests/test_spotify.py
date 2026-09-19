@@ -156,3 +156,34 @@ async def test_simulated_player_flow():
     assert (await sim.state()).device.volume == 55
     with pytest.raises(ServiceError):
         await sim.transfer("finnes-ikke")
+
+
+async def test_playlist_tracks_tries_items_then_tracks(tmp_path):
+    seen = []
+
+    def handler(request: httpx.Request):
+        seen.append(request.url.path)
+        if request.url.path.endswith("/api/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        if request.url.path.endswith("/playlists/p1/items"):
+            return httpx.Response(403, json={"error": {"status": 403, "message": "Forbidden"}})
+        if request.url.path.endswith("/playlists/p1/tracks"):
+            return httpx.Response(200, json={"items": [
+                {"track": {"name": "A", "uri": "spotify:track:a", "duration_ms": 1000, "artists": [{"name": "X"}], "album": {}}}],
+                "next": None})
+        return httpx.Response(404)
+
+    svc = make_service(handler, tmp_path)
+    tracks = await svc.playlist_tracks("p1")
+    assert [t.title for t in tracks] == ["A"]
+    assert [p for p in seen if "/playlists/" in p] == ["/v1/playlists/p1/items", "/v1/playlists/p1/tracks"]
+    assert await svc.playlist_tracks("p1") is tracks   # mellomlagret
+
+    def both_fail(request):
+        if request.url.path.endswith("/api/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        return httpx.Response(403, json={"error": {"status": 403, "message": "Forbidden"}})
+
+    with pytest.raises(ServiceError) as exc:
+        await make_service(both_fail, tmp_path).playlist_tracks("p2")
+    assert "/items" in exc.value.message and "/tracks" in exc.value.message
