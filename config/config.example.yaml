@@ -1,0 +1,79 @@
+# Konfigurasjon for Hjemmepanel.
+#
+# Kopier denne fila til config/config.yaml og tilpass den. config.yaml er
+# ikke med i git, så dine IP-adresser og valg blir liggende lokalt.
+
+server:
+  host: 0.0.0.0     # 0.0.0.0 = tilgjengelig fra andre maskiner på hjemmenettet
+  port: 8000
+
+dashboard:
+  title: Hjemmepanel
+  # Layouten er en "tegning" av skjermen, rad for rad. Hvert ord er id-en til
+  # et kort (lights, bus, weather, clock ...). Gjenta en id for å la kortet
+  # dekke flere celler. Alle rader må ha like mange ord.
+  layout:
+    - "lights lights bus"
+    - "lights lights weather"
+
+lights:
+  # true = simulerte pærer i minnet, fint for å utvikle og teste på PC.
+  simulate: true
+  timeout_seconds: 3
+  poll_interval_seconds: 10
+  # Bytt til f.eks. 192.168.1.255 hvis søk etter pærer ikke finner noe.
+  broadcast_address: 255.255.255.255
+  scenes_file: config/scenes.json
+  # Finn IP og MAC med:  python scripts/discover_bulbs.py
+  # Tips: gi pærene fast IP i ruteren (DHCP-reservasjon), da slipper du at
+  # adressene endrer seg. Med mac satt finner appen pæra igjen uansett.
+  bulbs:
+    - id: stue_vindu
+      name: Stue vindu
+      ip: 192.168.1.51
+      mac: null
+    - id: stue_sofa
+      name: Stue sofa
+      ip: 192.168.1.52
+      mac: null
+    - id: kjokken
+      name: Kjøkken
+      ip: 192.168.1.53
+      mac: null
+    - id: soverom
+      name: Soverom
+      ip: 192.168.1.54
+      mac: null
+
+bus:
+  enabled: true
+  # Finn din holdeplass med:  python scripts/find_stop.py "Navn på holdeplass"
+  stop_place_id: NSR:StopPlace:58366   # Jernbanetorget (eksempel)
+  stop_name: null                       # null = bruk navnet fra Entur
+  client_name: privat-hjemmepanel       # Entur krever en identifikator (firma-app)
+  number_of_departures: 10
+  time_range_seconds: 7200
+  refresh_seconds: 30
+  line_filter: []                       # f.eks. ["31", "37"] for å vise bare disse
+
+weather:
+  enabled: true
+  # Finn koordinater med:  python scripts/find_place.py "Stedsnavn"
+  place_name: Oslo
+  lat: 59.9139
+  lon: 10.7522
+  # MET krever at appen identifiserer seg med e-post eller nettadresse.
+  user_agent: "hjemmepanel/1.0 (bytt-meg@example.com)"
+  refresh_seconds: 600
+  hours: 6
+  days: 3
+
+buttons:
+  # Fysiske knapper koblet til GPIO på Pi-en (valgfritt, se README).
+  enabled: false
+  buttons:
+    - gpio: 17
+      action: scene
+      scene: kveld
+    - gpio: 27
+      action: toggle_all

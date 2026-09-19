@@ -1,0 +1,186 @@
+/* Grunnstil for Hjemmepanel.
+   Laget for en 10" berøringsskjerm (typisk 1280x800) i mørkt rom, men fungerer
+   også i et vanlig nettleservindu på PC. Alle mål tar utgangspunkt i
+   variablene under – juster dem her hvis noe blir for stort eller lite. */
+
+:root {
+  --bg: #0e1116;
+  --surface: #171b22;
+  --surface-2: #212733;
+  --surface-3: #2b3341;
+  --border: #2a3140;
+  --text: #e8ecf1;
+  --muted: #94a0b2;
+  --accent: #f5b942;        /* varmt lys – brukes for "på" og aktive ting */
+  --accent-text: #1a1200;
+  --info: #4da3ff;
+  --danger: #ff5c5c;
+  --ok: #4fd18b;
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --gap: 14px;
+  --touch: 64px;            /* minste høyde på noe man skal trykke på */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 18px;
+  line-height: 1.3;
+  /* Kiosk: ingen tekstmarkering, ingen zoom ved dobbelttrykk */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- Knapper ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 0 22px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 1.05rem;
+  font-weight: 600;
+  transition: background .12s, transform .08s;
+}
+.btn:active { transform: scale(.97); background: var(--surface-3); }
+.btn.is-active { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+.btn.btn-danger { color: var(--danger); }
+.btn.btn-ghost { background: transparent; }
+.btn[disabled] { opacity: .5; pointer-events: none; }
+.btn svg { width: 26px; height: 26px; flex: none; }
+
+/* ---------- Skyveknapper (dimming, fargetemperatur, farge) ---------- */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--surface-2);
+  outline: none;
+  margin: 0;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid var(--bg);
+  box-shadow: 0 2px 10px rgba(0,0,0,.5);
+  cursor: pointer;
+}
+.slider.slider-brightness {
+  background: linear-gradient(90deg, #2a2f38, var(--accent));
+}
+.slider.slider-kelvin {
+  background: linear-gradient(90deg, #ff9a3c, #fff3d6 55%, #cfe4ff);
+}
+.slider.slider-hue {
+  background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+
+/* ---------- Fullskjerms ark (overlay) ---------- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+  z-index: 50;
+}
+.sheet {
+  width: min(880px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+.sheet-title { font-size: 1.5rem; font-weight: 700; }
+.sheet-close { width: var(--touch); height: var(--touch); border-radius: 50%; background: var(--surface-2); font-size: 1.6rem; }
+
+/* ---------- Bekreftelsesdialog ---------- */
+.confirm-text { font-size: 1.15rem; }
+.confirm-actions { display: flex; gap: var(--gap); justify-content: flex-end; }
+
+/* ---------- Toast (korte meldinger) ---------- */
+.toast-root {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 20px;
+  font-size: 1rem;
+  box-shadow: 0 6px 24px rgba(0,0,0,.5);
+  animation: toast-in .2s ease-out;
+}
+.toast.toast-error { border-color: var(--danger); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Frakoblet-overlay ---------- */
+.offline-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14,17,22,.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.offline-overlay[hidden] { display: none; }
+.offline-box { text-align: center; }
+.offline-title { font-size: 2rem; font-weight: 700; color: var(--danger); }
+.offline-text { color: var(--muted); margin-top: 8px; }
+
+/* ---------- Små hjelpeklasser ---------- */
+.muted { color: var(--muted); }
+.row { display: flex; align-items: center; gap: var(--gap); }
+.grow { flex: 1; }
+.hidden { display: none !important; }

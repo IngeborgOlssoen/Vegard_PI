@@ -1,0 +1,70 @@
+/* Rutenettet og rammen rundt hvert kort. Stil for innholdet i de enkelte
+   kortene ligger lenger ned, gruppert per kort. */
+
+/* ---------- Rutenett ---------- */
+.dashboard {
+  height: 100vh;
+  padding: var(--gap);
+  display: grid;
+  gap: var(--gap);
+  /* grid-template-areas/columns/rows settes fra config.yaml av js/app.js */
+}
+
+/* ---------- Kort ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;         /* lar innholdet rulle i stedet for å sprenge rutenettet */
+  overflow: hidden;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px 8px;
+}
+.card-title { font-size: 1.15rem; font-weight: 700; flex: 1; }
+.card-status { font-size: .85rem; color: var(--muted); }
+.card-status.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 10px; height: 10px;
+  margin-left: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  border-top-color: transparent;
+  animation: spin .8s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.card-error {
+  margin: 0 18px 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,92,92,.12);
+  border: 1px solid rgba(255,92,92,.5);
+  color: #ffb3b3;
+  font-size: .95rem;
+}
+.card-error[hidden] { display: none; }
+
+.card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 18px 18px;
+}
+
+/* Plassholder for kort som ikke finnes (feil id i layout eller ikke laget ennå) */
+.card-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+}

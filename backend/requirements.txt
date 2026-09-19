@@ -1,0 +1,12 @@
+# Backend-avhengigheter for Hjemmepanel.
+# Installeres med:  pip install -r backend/requirements.txt
+fastapi>=0.110
+uvicorn[standard]>=0.27
+httpx>=0.26
+pywizlight>=0.5.14
+pyyaml>=6.0
+pydantic>=2.5
+
+# Kun for testing (pytest kjøres fra backend/-mappa)
+pytest>=8.0
+pytest-asyncio>=0.23

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Hjemmepanel</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/cards.css">
+</head>
+<body>
+  <!-- Kortene legges inn her av js/app.js, ut fra layouten i config.yaml -->
+  <main id="dashboard" class="dashboard" aria-label="Hjemmepanel"></main>
+
+  <!-- Fullskjerms "ark" (f.eks. detaljstyring av en pære) legges her -->
+  <div id="sheet-root"></div>
+
+  <!-- Korte meldinger nederst på skjermen -->
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <!-- Vises hvis vi mister kontakt med backend over lengre tid -->
+  <div id="offline-overlay" class="offline-overlay" hidden>
+    <div class="offline-box">
+      <div class="offline-title">Ingen kontakt med serveren</div>
+      <div class="offline-text">Prøver igjen automatisk …</div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

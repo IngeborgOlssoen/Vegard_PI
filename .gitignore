@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Lokal konfigurasjon (config.example.yaml er malen som sjekkes inn)
+config/config.yaml
+
+# Diverse
+.DS_Store
+*.log
