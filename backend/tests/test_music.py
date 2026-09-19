@@ -98,3 +98,49 @@ def test_music_api_with_simulated_sonos(tmp_path):
 def test_music_api_disabled(client):
     r = client.get("/api/music")
     assert r.status_code == 404 and "ikke satt opp" in r.json()["error"]["message"]
+
+
+class _SonosInConnectMode:
+    """Later som Sonos som spiller via Spotify Connect: neste/forrige gir 701."""
+    def __init__(self):
+        self.calls = []
+
+    async def next(self):
+        self.calls.append("next")
+        raise ServiceError("UPnP Error 701", code="sonos_transition")
+
+    async def previous(self):
+        raise ServiceError("UPnP Error 701", code="sonos_transition")
+
+    async def pause(self):
+        self.calls.append("pause")
+
+
+class _SpotifyRecorder:
+    logged_in = True
+
+    def __init__(self):
+        self.calls = []
+
+    async def next(self):
+        self.calls.append("next")
+
+    async def previous(self):
+        raise ServiceError("Spotify tillater ikke dette akkurat nå", code="spotify_restricted")
+
+
+async def test_next_falls_back_to_spotify_when_sonos_cannot_control_queue():
+    sonos, spotify = _SonosInConnectMode(), _SpotifyRecorder()
+    music = MusicService(sonos=sonos, spotify=spotify)
+    await music.next()
+    assert sonos.calls == ["next"] and spotify.calls == ["next"]
+    await music.pause()                       # virker lokalt, ingen omvei
+    assert sonos.calls == ["next", "pause"] and spotify.calls == ["next"]
+
+    with pytest.raises(ServiceError) as exc:  # begge feiler → én samlet, forståelig melding
+        await music.previous()
+    assert "Spotify:" in exc.value.message
+
+    with pytest.raises(ServiceError) as exc:  # uten Spotify: Sonos sin melding
+        await MusicService(sonos=_SonosInConnectMode(), spotify=None).next()
+    assert exc.value.code == "sonos_transition"

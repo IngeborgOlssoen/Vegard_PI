@@ -77,6 +77,9 @@ class PlayerState(BaseModel):
     device: Optional[Device] = None
     track: Optional[Track] = None
     context_uri: Optional[str] = None   # spillelista/albumet som spilles
+    # Sonos: true når avspillingen styres av en annen app (Spotify Connect, AirPlay).
+    # Da kan ikke høyttaleren selv hoppe i køen; neste/forrige må gå via Spotify.
+    external: bool = False
 
 
 class Playlist(BaseModel):
@@ -297,6 +300,9 @@ class SpotifyService:
                 raise ServiceError("Spotify Premium kreves for å styre avspilling", code="spotify_premium")
             if reason == "NO_ACTIVE_DEVICE" or resp.status_code == 404 and "device" in message.lower():
                 raise ServiceError("Ingen aktiv høyttaler. Velg en høyttaler først.", code="spotify_no_device")
+            if "Restriction violated" in message:
+                raise ServiceError("Spotify tillater ikke dette akkurat nå (f.eks. å hoppe tilbake i det som spilles)",
+                                   code="spotify_restricted")
             raise ServiceError(f"Spotify svarte med feil (HTTP {resp.status_code}) {message}".strip(),
                                code="spotify_http")
         return resp

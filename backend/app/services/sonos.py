@@ -78,7 +78,8 @@ class SonosService:
         except asyncio.TimeoutError:
             raise ServiceError("Sonos svarte ikke (tidsavbrudd)", code="sonos_timeout")
         except SoCoException as exc:
-            raise ServiceError(_friendly_soco_error(exc), code="sonos_error")
+            code = "sonos_transition" if "701" in str(exc) else "sonos_error"
+            raise ServiceError(_friendly_soco_error(exc), code=code)
         except (requests.RequestException, OSError) as exc:
             self._zones = {}  # tving nytt søk neste gang
             raise ServiceError(f"Fikk ikke kontakt med Sonos ({type(exc).__name__}). Er høyttalerne på?",
@@ -172,9 +173,10 @@ class SonosService:
             track = Track(title=title, artists=info.get("artist") or "", album=info.get("album") or "",
                           image=info.get("album_art") or None, duration_ms=parse_clock(info.get("duration")),
                           uri=info.get("uri") or "")
+        uri = info.get("uri") or ""
         return PlayerState(active=track is not None or transport == "PLAYING", is_playing=transport == "PLAYING",
                            progress_ms=parse_clock(info.get("position")), device=device, track=track,
-                           context_uri=self._last_context)
+                           context_uri=self._last_context, external=uri.startswith("x-sonos-vli:"))
 
     async def state(self, fresh: bool = False) -> PlayerState:
         await self.ensure_zones()
@@ -278,6 +280,9 @@ class SonosService:
 
 def _friendly_soco_error(exc: Exception) -> str:
     text = str(exc)
+    if "701" in text:
+        return ("Sonos kan ikke gjøre dette med det som spilles nå, siden avspillingen styres fra en annen app "
+                "(f.eks. Spotify-appen). Start en spilleliste fra panelet, så virker alle knappene.")
     if "800" in text or "UPnP" in text and "Spotify" in text:
         return "Sonos kunne ikke spille dette. Er Spotify lagt til i Sonos-appen med samme konto?"
     return f"Sonos svarte med feil: {text}"

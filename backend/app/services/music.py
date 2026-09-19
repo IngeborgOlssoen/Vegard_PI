@@ -67,17 +67,39 @@ class MusicService:
         self._check()
         return self.sonos if self.sonos is not None else self.spotify
 
+    async def _transport(self, name: str, *args) -> None:
+        """Kjører spill/pause/neste/forrige. Sonos først; spiller den noe den ikke styrer
+        selv (Spotify Connect startet fra Spotify-appen), svarer den 701, og da prøver vi
+        samme kommando via Spotify sitt API, som styrer avspillingen i det tilfellet."""
+        player = self._player()
+        try:
+            await getattr(player, name)(*args)
+        except ServiceError as exc:
+            if exc.code != "sonos_transition":
+                raise
+            if self.spotify is not None and self.spotify.logged_in:
+                log.info("Sonos styrer ikke køen selv – sender «%s» via Spotify", name)
+                try:
+                    await getattr(self.spotify, name)()
+                    return
+                except ServiceError as spotify_exc:
+                    raise ServiceError(f"{exc.message} (Spotify: {spotify_exc.message})", code=exc.code)
+            raise
+
     async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
-        await self._player().play(context_uri, device_id)
+        if context_uri:
+            await self._player().play(context_uri, device_id)   # ny spilleliste går alltid til Sonos-køen
+        else:
+            await self._transport("play", None, device_id)
 
     async def pause(self) -> None:
-        await self._player().pause()
+        await self._transport("pause")
 
     async def next(self) -> None:
-        await self._player().next()
+        await self._transport("next")
 
     async def previous(self) -> None:
-        await self._player().previous()
+        await self._transport("previous")
 
     async def set_volume(self, percent: int, device_id: Optional[str] = None) -> None:
         await self._player().set_volume(percent, device_id)
