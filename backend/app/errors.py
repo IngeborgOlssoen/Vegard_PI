@@ -5,6 +5,7 @@ krasje backend. I stedet kaster tjenestene `ServiceError` med en norsk
 melding, og frontend viser meldingen i det aktuelle kortet.
 """
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 
@@ -27,6 +28,19 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status,
             content={"error": {"code": exc.code, "message": exc.message}},
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # Ugyldig innhold i en forespørsel (f.eks. brightness: 300). Lag én lesbar melding.
+        parts = []
+        for err in exc.errors():
+            field = ".".join(str(x) for x in err.get("loc", []) if x != "body")
+            msg = err.get("msg", "").replace("Value error, ", "")
+            parts.append(f"{field}: {msg}" if field else msg)
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": "invalid_request", "message": "Ugyldig forespørsel – " + "; ".join(parts)}},
         )
 
     @app.exception_handler(Exception)

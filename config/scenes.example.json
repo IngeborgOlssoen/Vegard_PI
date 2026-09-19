@@ -1,0 +1,32 @@
+{
+  "scenes": [
+    {
+      "id": "kveld",
+      "name": "Kveld",
+      "icon": "moon",
+      "default": { "on": true, "brightness": 35, "colortemp": 2700 },
+      "bulbs": {}
+    },
+    {
+      "id": "film",
+      "name": "Film",
+      "icon": "film",
+      "default": { "on": true, "brightness": 15, "rgb": [255, 120, 40] },
+      "bulbs": {}
+    },
+    {
+      "id": "dag",
+      "name": "Dag",
+      "icon": "sun",
+      "default": { "on": true, "brightness": 100, "colortemp": 4200 },
+      "bulbs": {}
+    },
+    {
+      "id": "alt_av",
+      "name": "Alt av",
+      "icon": "off",
+      "default": { "on": false },
+      "bulbs": {}
+    }
+  ]
+}

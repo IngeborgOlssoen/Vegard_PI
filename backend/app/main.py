@@ -14,7 +14,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIR, AppConfig, load_config
 from app.errors import install_error_handlers
-from app.routers import system
+from app.routers import lights, system
+from app.services.lights import LightService
+from app.services.scenes import SceneStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -27,7 +29,11 @@ def create_app(config: AppConfig) -> FastAPI:
     async def lifespan(app: FastAPI):
         # Alt som skal startes/stoppes sammen med serveren settes opp her.
         log.info("Hjemmepanel starter")
+        app.state.scenes = SceneStore(config.resolve(config.lights.scenes_file))
+        app.state.lights = LightService(config.lights, app.state.scenes)
+        await app.state.lights.start()
         yield
+        await app.state.lights.stop()
         log.info("Hjemmepanel stopper")
 
     app = FastAPI(title="Hjemmepanel", lifespan=lifespan)
@@ -36,6 +42,7 @@ def create_app(config: AppConfig) -> FastAPI:
 
     # API-ruter (alle under /api)
     app.include_router(system.router, prefix="/api")
+    app.include_router(lights.router, prefix="/api")
 
     # Frontend: statiske filer fra frontend/-mappa. html=True gjør at "/" gir index.html.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

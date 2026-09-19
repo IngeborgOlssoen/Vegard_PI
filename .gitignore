@@ -10,3 +10,6 @@ config/config.yaml
 # Diverse
 .DS_Store
 *.log
+
+# Scener (scenes.example.json er malen som sjekkes inn)
+config/scenes.json
