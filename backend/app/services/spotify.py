@@ -91,6 +91,22 @@ class Playlist(BaseModel):
     tracks: int = 0
 
 
+class PlaylistTrack(BaseModel):
+    index: int                 # plass i lista, 0-basert
+    title: str
+    artists: str
+    album: str = ""
+    duration_ms: int = 0
+    uri: str = ""
+    image: Optional[str] = None
+
+
+class PlaylistDetail(BaseModel):
+    playlist: Playlist
+    tracks: list[PlaylistTrack]
+    total_ms: int = 0
+
+
 class MusicOverview(BaseModel):
     ready: bool                    # false = ikke logget inn ennå
     message: Optional[str] = None  # forklaring når ready = false
@@ -159,6 +175,25 @@ def parse_playlists(data: dict) -> list[Playlist]:
     return out
 
 
+def parse_playlist_tracks(pages: list) -> list[PlaylistTrack]:
+    """Sangene i en spilleliste fra én eller flere sider av Spotifys svar."""
+    out: list[PlaylistTrack] = []
+    for page in pages:
+        for item in page.get("items") or []:
+            track = (item or {}).get("track") or (item or {}).get("item") or {}
+            if not track or not track.get("name"):
+                continue  # slettede/utilgjengelige sanger
+            images = (track.get("album") or {}).get("images") or []
+            out.append(PlaylistTrack(
+                index=len(out), title=track["name"],
+                artists=", ".join(a.get("name", "") for a in track.get("artists") or []) or (track.get("show") or {}).get("name", ""),
+                album=(track.get("album") or {}).get("name") or "",
+                duration_ms=int(track.get("duration_ms") or 0), uri=track.get("uri") or "",
+                image=_best_image(images, 64),
+            ))
+    return out
+
+
 def _best_image(images: list, wanted: int) -> Optional[str]:
     """Velger bildet som er nærmest ønsket størrelse (Spotify gir 640/300/64)."""
     if not images:
@@ -219,6 +254,7 @@ class SpotifyService:
         self._devices_time = 0.0
         self._playlists: list[Playlist] = []
         self._playlists_time = 0.0
+        self._tracks: dict[str, tuple[float, list[PlaylistTrack]]] = {}   # spilleliste-id → (tid, sanger)
         if cfg.enabled and not cfg.client_id:
             log.warning("spotify.enabled er true, men client_id mangler i config.yaml")
         if cfg.enabled and not self.logged_in:
@@ -346,6 +382,32 @@ class SpotifyService:
         self._playlists_time = time.monotonic()
         return self._playlists
 
+    async def playlist_tracks(self, playlist_id: str) -> list[PlaylistTrack]:
+        """Sangene i en spilleliste (inntil 300), mellomlagret i 10 minutter."""
+        cached = self._tracks.get(playlist_id)
+        if cached and time.monotonic() - cached[0] < PLAYLISTS_CACHE_SECONDS:
+            return cached[1]
+        fields = "items(track(name,uri,duration_ms,artists(name),album(name,images)),item(name,uri,duration_ms,artists(name),album(name,images))),next,total"
+        pages = []
+        path = f"/playlists/{playlist_id}/tracks"
+        for offset in range(0, 300, 100):
+            try:
+                resp = await self._api("GET", path, params={"limit": 100, "offset": offset, "fields": fields})
+            except ServiceError as exc:
+                # Spotify har døpt om endepunktet; prøv det nye navnet én gang
+                if path.endswith("/tracks") and exc.code == "spotify_http" and ("404" in exc.message or "410" in exc.message):
+                    path = f"/playlists/{playlist_id}/items"
+                    resp = await self._api("GET", path, params={"limit": 100, "offset": offset, "fields": fields})
+                else:
+                    raise
+            page = resp.json()
+            pages.append(page)
+            if not page.get("next"):
+                break
+        tracks = parse_playlist_tracks(pages)
+        self._tracks[playlist_id] = (time.monotonic(), tracks)
+        return tracks
+
     # --- styring -------------------------------------------------------------
 
     def _invalidate(self) -> None:
@@ -369,11 +431,15 @@ class SpotifyService:
                 return d.id
         return devices[0].id
 
-    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
+    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None,
+                   offset: Optional[int] = None) -> None:
         target = await self._pick_device(device_id)
         state = await self.state()
         if context_uri:
-            await self._api("PUT", "/me/player/play", params={"device_id": target}, json={"context_uri": context_uri})
+            body = {"context_uri": context_uri}
+            if offset:
+                body["offset"] = {"position": int(offset)}
+            await self._api("PUT", "/me/player/play", params={"device_id": target}, json=body)
         elif state.device and state.device.id != target:
             await self.transfer(target, play=True)
         else:
@@ -504,14 +570,27 @@ class SimSpotifyService:
     async def playlists(self) -> list[Playlist]:
         return self.playlists_list
 
-    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
+    async def playlist_tracks(self, playlist_id: str) -> list[PlaylistTrack]:
+        playlist = next((p for p in self.playlists_list if p.id == playlist_id), None)
+        if playlist is None:
+            raise ServiceError("Fant ikke spillelista", code="spotify_http", status=404)
+        out = []
+        for i in range(min(playlist.tracks, 40)):
+            title, artist, album = _SIM_TRACKS[i % len(_SIM_TRACKS)]
+            out.append(PlaylistTrack(index=i, title=f"{title} {i // len(_SIM_TRACKS) + 1}" if i >= len(_SIM_TRACKS) else title,
+                                     artists=artist, album=album, duration_ms=180_000 + (i * 7919) % 90_000,
+                                     uri=f"spotify:track:sim{i}"))
+        return out
+
+    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None,
+                   offset: Optional[int] = None) -> None:
         if device_id:
             await self.transfer(device_id)
         if context_uri:
             if context_uri not in [p.uri for p in self.playlists_list]:
                 raise ServiceError("Fant ikke spillelista", code="spotify_http")
             self.context_uri = context_uri
-            self.track_index = 0
+            self.track_index = int(offset or 0)
         self.is_playing = True
         self._started = time.monotonic() - (self._paused_at / 1000 if not context_uri else 0)
 

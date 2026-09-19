@@ -1,7 +1,8 @@
 """HTTP-endepunkter for musikk (Sonos og/eller Spotify, se services/music.py).
 
   GET  /api/music                        hva som spilles, rom/høyttalere og spillelister
-  POST /api/music/play      {context_uri?, device_id?}   start spilleliste / fortsett
+  GET  /api/music/playlists/{id}         sangene i en spilleliste
+  POST /api/music/play      {context_uri?, device_id?, offset?}   start spilleliste (fra sang nr. offset) / fortsett
   POST /api/music/pause
   POST /api/music/next
   POST /api/music/previous
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/music", tags=["music"])
 class PlayBody(BaseModel):
     context_uri: Optional[str] = None
     device_id: Optional[str] = None
+    offset: Optional[int] = Field(default=None, ge=0)   # start på denne sangen (0-basert) i lista
 
 
 class VolumeBody(BaseModel):
@@ -60,9 +62,14 @@ async def overview(request: Request) -> dict:
     return (await _svc(request).overview()).model_dump()
 
 
+@router.get("/playlists/{playlist_id}")
+async def playlist(playlist_id: str, request: Request) -> dict:
+    return (await _svc(request).playlist(playlist_id)).model_dump()
+
+
 @router.post("/play")
 async def play(body: PlayBody, request: Request) -> dict:
-    await _svc(request).play(body.context_uri, body.device_id)
+    await _svc(request).play(body.context_uri, body.device_id, body.offset)
     return await _after(request)
 
 

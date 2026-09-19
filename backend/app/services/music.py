@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.errors import ServiceError
-from app.services.spotify import NOT_LOGGED_IN, MusicOverview, Playlist
+from app.services.spotify import NOT_LOGGED_IN, MusicOverview, Playlist, PlaylistDetail
 
 log = logging.getLogger(__name__)
 
@@ -101,12 +101,25 @@ class MusicService:
                                    f"spilleliste fra panelet i stedet.", code="spotify_no_device")
             await getattr(self.spotify, name)(*args)
 
-    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
+    async def playlist(self, playlist_id: str) -> PlaylistDetail:
+        """Sangene i en spilleliste (fra Spotify)."""
+        self._check()
+        if self.spotify is None or not self.spotify.logged_in:
+            raise ServiceError(NOT_LOGGED_IN if self.spotify else "Spillelister krever Spotify (spotify.enabled i config.yaml)",
+                               code="spotify_not_logged_in")
+        playlist = next((p for p in await self.spotify.playlists() if p.id == playlist_id), None)
+        if playlist is None:
+            raise ServiceError("Fant ikke spillelista", code="playlist_not_found", status=404)
+        tracks = await self.spotify.playlist_tracks(playlist_id)
+        return PlaylistDetail(playlist=playlist, tracks=tracks, total_ms=sum(t.duration_ms for t in tracks))
+
+    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None,
+                   offset: Optional[int] = None) -> None:
         if not context_uri:
             await self._transport("play", None, device_id)
             return
         try:
-            await self._player().play(context_uri, device_id)   # ny spilleliste går først til Sonos-køen
+            await self._player().play(context_uri, device_id, offset)   # ny spilleliste går først til Sonos-køen
         except ServiceError as exc:
             if exc.code != "sonos_enqueue_failed" or self.spotify is None or not self.spotify.logged_in:
                 raise
@@ -115,7 +128,7 @@ class MusicService:
             room = state.device.name.split(" + ")[0] if state.device else None
             log.info("Sonos-køen ble tom, prøver Spotify Connect i «%s»", room)
             if room and await self.spotify.activate_device_by_name(room):
-                await self.spotify.play(context_uri)
+                await self.spotify.play(context_uri, offset=offset)
                 return
             raise ServiceError(f"{exc.message} (Spotify kjenner heller ikke rommet «{room}» akkurat nå.)",
                                code=exc.code)

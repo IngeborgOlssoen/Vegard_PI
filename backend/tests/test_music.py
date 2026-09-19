@@ -91,6 +91,14 @@ def test_music_api_with_simulated_sonos(tmp_path):
         ov = client.post("/api/music/seek", json={"position_ms": 90_000}).json()
         assert 89_000 <= ov["state"]["progress_ms"] <= 91_000
 
+        # Spilleliste-visning og start fra en bestemt sang
+        pl = client.get(f"/api/music/playlists/{ov['playlists'][0]['id']}").json()
+        assert pl["playlist"]["name"] == "Kveldsstemning" and len(pl["tracks"]) == 40 and pl["total_ms"] > 0
+        assert pl["tracks"][7]["index"] == 7 and pl["tracks"][7]["uri"] == "spotify:track:sim7"
+        ov = client.post("/api/music/play", json={"context_uri": pl["playlist"]["uri"], "offset": 7}).json()
+        assert ov["state"]["track"]["uri"] == "spotify:track:sim7" and ov["state"]["is_playing"]
+        assert client.get("/api/music/playlists/finnes-ikke").status_code == 404
+
         assert client.post("/api/music/volume", json={"percent": 150}).status_code == 422
         r = client.post("/api/music/rooms/finnes-ikke/toggle")
         assert r.status_code == 404 and "Fant ikke" in r.json()["error"]["message"]
@@ -247,7 +255,7 @@ def test_enqueue_tries_spotify_variants_until_tracks_arrive():
 
 
 class _SonosEmptyQueue:
-    async def play(self, context_uri=None, device_id=None):
+    async def play(self, context_uri=None, device_id=None, offset=None):
         raise ServiceError("Sonos la ikke sangene i køen.", code="sonos_enqueue_failed")
 
     async def state(self):
@@ -265,15 +273,33 @@ class _SpotifyConnect:
     async def activate_device_by_name(self, name):
         return self.knows_room
 
-    async def play(self, context_uri=None, device_id=None):
-        self.played.append(context_uri)
+    async def play(self, context_uri=None, device_id=None, offset=None):
+        self.played.append((context_uri, offset))
 
 
 async def test_play_falls_back_to_spotify_connect_when_queue_stays_empty():
     spotify = _SpotifyConnect(knows_room=True)
-    await MusicService(sonos=_SonosEmptyQueue(), spotify=spotify).play("spotify:playlist:p")
-    assert spotify.played == ["spotify:playlist:p"]
+    await MusicService(sonos=_SonosEmptyQueue(), spotify=spotify).play("spotify:playlist:p", offset=3)
+    assert spotify.played == [("spotify:playlist:p", 3)]
 
     with pytest.raises(ServiceError) as exc:
         await MusicService(sonos=_SonosEmptyQueue(), spotify=_SpotifyConnect(knows_room=False)).play("spotify:playlist:p")
     assert "Cocina" in exc.value.message
+
+
+def test_spotify_track_uri_from_sonos_uri():
+    from app.services.sonos import spotify_track_uri
+    assert spotify_track_uri("x-sonos-spotify:spotify%3atrack%3a4uLU6hMCjMI75M1A2tKUQC?sid=9&flags=8232&sn=1") == "spotify:track:4uLU6hMCjMI75M1A2tKUQC"
+    assert spotify_track_uri("x-sonos-vli:RINCON_1:2,spotify:abc") is None
+    assert spotify_track_uri(None) is None
+
+
+def test_parse_playlist_tracks_handles_both_item_shapes():
+    from app.services.spotify import parse_playlist_tracks
+    pages = [{"items": [
+        {"track": {"name": "A", "uri": "spotify:track:a", "duration_ms": 1000, "artists": [{"name": "X"}], "album": {"name": "Al", "images": [{"url": "u", "width": 64}]}}},
+        {"item": {"name": "B", "uri": "spotify:track:b", "duration_ms": 2000, "artists": [{"name": "Y"}, {"name": "Z"}], "album": {}}},
+        {"track": None},
+    ]}]
+    tracks = parse_playlist_tracks(pages)
+    assert [(t.index, t.title, t.artists, t.image) for t in tracks] == [(0, "A", "X", "u"), (1, "B", "Y, Z", None)]

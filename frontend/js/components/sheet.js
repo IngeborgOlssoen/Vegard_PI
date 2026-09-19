@@ -7,17 +7,17 @@ let current = null;
  * Åpner et ark.
  * @param {string} title  overskrift
  * @param {(body: HTMLElement) => void} build  fyller innholdet
- * @param {{onClose?: () => void}} opts
+ * @param {{onClose?: () => void, wide?: boolean}} opts  wide = nesten hele skjermen (lister)
  * @returns {{close: () => void, body: HTMLElement}}
  */
-export function openSheet(title, build, { onClose } = {}) {
+export function openSheet(title, build, { onClose, wide = false } = {}) {
   closeSheet();
   const root = document.getElementById('sheet-root');
 
   const backdrop = document.createElement('div');
   backdrop.className = 'sheet-backdrop';
   backdrop.innerHTML = `
-    <div class="sheet" role="dialog" aria-label="${escapeHtml(title)}">
+    <div class="sheet ${wide ? 'sheet-wide' : ''}" role="dialog" aria-label="${escapeHtml(title)}">
       <div class="sheet-header">
         <div class="sheet-title">${escapeHtml(title)}</div>
         <button class="sheet-close" aria-label="Lukk">✕</button>

@@ -45,6 +45,16 @@ def parse_clock(value: Optional[str]) -> int:
     return int((h * 3600 + m * 60 + s) * 1000)
 
 
+SONOS_SPOTIFY_TRACK = re.compile(r"spotify(?:%3a|:)track(?:%3a|:)(\w+)", re.IGNORECASE)
+
+
+def spotify_track_uri(sonos_uri: Optional[str]) -> Optional[str]:
+    """Sonos oppgir Spotify-sanger som f.eks. x-sonos-spotify:spotify%3atrack%3aID?sid=9 –
+    hent ut spotify:track:ID så frontend kan markere sangen i spillelista."""
+    m = SONOS_SPOTIFY_TRACK.search(sonos_uri or "")
+    return f"spotify:track:{m.group(1)}" if m else None
+
+
 def format_clock(ms: int) -> str:
     """Millisekunder → "H:MM:SS" slik Sonos vil ha det."""
     total = max(0, int(ms)) // 1000
@@ -246,12 +256,12 @@ class SonosService:
         device = Device(id=coord.uid, name=group_name(coord.player_name, members), is_active=True,
                         volume=coord.group.volume if coord.group else coord.volume, is_coordinator=True)
         title = info.get("title") or ""
+        uri = info.get("uri") or ""
         track = None
         if title:
             track = Track(title=title, artists=info.get("artist") or "", album=info.get("album") or "",
                           image=info.get("album_art") or None, duration_ms=parse_clock(info.get("duration")),
-                          uri=info.get("uri") or "")
-        uri = info.get("uri") or ""
+                          uri=spotify_track_uri(uri) or uri)
         return PlayerState(active=track is not None or transport == "PLAYING", is_playing=transport == "PLAYING",
                            progress_ms=parse_clock(info.get("position")), device=device, track=track,
                            context_uri=self._last_context, external=uri.startswith("x-sonos-vli:"))
@@ -275,24 +285,29 @@ class SonosService:
 
     # --- styring ----------------------------------------------------------------
 
-    def _play_sync(self, context_uri: Optional[str]) -> None:
+    def _play_sync(self, context_uri: Optional[str], offset: int = 0) -> None:
         coord = self._target_sync()
-        if context_uri:
-            coord.clear_queue()
-            added = enqueue_spotify(coord, context_uri)
-            if added == 0:
-                raise ServiceError("Sonos la ikke sangene i køen. Er Spotify lagt til i Sonos-appen med samme "
-                                   "konto som spillelistene kommer fra?", code="sonos_enqueue_failed")
-            coord.play_from_queue(0)
-            self._last_context = context_uri
-        else:
+        if not context_uri:
             coord.play()
+            return
+        # Ligger samme spilleliste allerede i køen, hopp rett til sangen
+        if context_uri == self._last_context and offset < coord.queue_size:
+            coord.play_from_queue(offset)
+            return
+        coord.clear_queue()
+        added = enqueue_spotify(coord, context_uri)
+        if added == 0:
+            raise ServiceError("Sonos la ikke sangene i køen. Er Spotify lagt til i Sonos-appen med samme "
+                               "konto som spillelistene kommer fra?", code="sonos_enqueue_failed")
+        coord.play_from_queue(min(offset, added - 1))
+        self._last_context = context_uri
 
-    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
+    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None,
+                   offset: Optional[int] = None) -> None:
         await self.ensure_zones()
         if device_id:
             self._selected_uid = self._zone(device_id).uid
-        await self._run(self._play_sync, context_uri)
+        await self._run(self._play_sync, context_uri, int(offset or 0))
 
     async def pause(self) -> None:
         await self.ensure_zones()
@@ -426,7 +441,8 @@ class SimSonosService:
         track = None
         if self._last_context or self.is_playing or self._paused_at:
             title, artist, album = self._tracks[self.track_index % len(self._tracks)]
-            track = Track(title=title, artists=artist, album=album, duration_ms=214_000)
+            track = Track(title=title, artists=artist, album=album, duration_ms=214_000,
+                          uri=f"spotify:track:sim{self.track_index}")
         return PlayerState(active=track is not None, is_playing=self.is_playing, progress_ms=self._progress(),
                            device=device, track=track, context_uri=self._last_context)
 
@@ -436,14 +452,15 @@ class SimSonosService:
                               is_coordinator=uid == coord) for uid, r in self.rooms_state.items()),
                       key=lambda d: d.name)
 
-    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
+    async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None,
+                   offset: Optional[int] = None) -> None:
         if device_id:
             if device_id not in self.rooms_state:
                 raise ServiceError("Fant ikke rommet", code="sonos_no_room", status=404)
             self._selected = device_id
         if context_uri:
             self._last_context = context_uri
-            self.track_index = 0
+            self.track_index = int(offset or 0)
             self._paused_at = 0
         self.is_playing = True
         self._started = time.monotonic() - self._paused_at / 1000

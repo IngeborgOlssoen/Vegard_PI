@@ -175,10 +175,84 @@ function renderPlaylists() {
       </button>`).join('')
       : '<div class="muted">Ingen spillelister funnet på Spotify-kontoen.</div>';
     grid.querySelectorAll('.playlist').forEach((b) =>
-      b.addEventListener('click', () => command('play', { context_uri: b.dataset.uri })));
+      b.addEventListener('click', () => openPlaylistSheet(b.dataset.uri)));
   }
   grid.querySelectorAll('.playlist').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.uri === data.state.context_uri));
+  if (playlistSheet) highlightCurrentTrack();
+}
+
+/* ---------- Spilleliste-ark: sangene i lista, spill hele eller fra én sang ---------- */
+
+let playlistSheet = null;    // { uri, body }
+
+function openPlaylistSheet(uri) {
+  const playlist = data.playlists.find((p) => p.uri === uri);
+  if (!playlist) return;
+  playlistSheet = { uri };
+  openSheet(playlist.name, async (body, handle) => {
+    playlistSheet.body = body;
+    body.innerHTML = `
+      <div class="pl-head">
+        <span class="pl-cover">${playlist.image ? `<img src="${escapeHtml(playlist.image)}" alt="">`
+          : `<span class="playlist-initial">${escapeHtml(playlist.name.slice(0, 1))}</span>`}</span>
+        <div class="pl-info">
+          <div class="pl-meta muted" data-meta>${playlist.owner ? `av ${escapeHtml(playlist.owner)} · ` : ''}${playlist.tracks} sanger</div>
+          <div class="pl-actions">
+            <button class="btn is-active" data-act="play-all">${icon('play')}<span>Spill</span></button>
+            <button class="btn" data-act="shuffle-all">${icon('shuffle')}<span>Tilfeldig</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="pl-tracks" data-tracks><div class="muted">Henter sanger …</div></div>`;
+
+    body.querySelector('[data-act=play-all]').addEventListener('click', () => {
+      handle.close();
+      command('play', { context_uri: uri });
+    });
+    body.querySelector('[data-act=shuffle-all]').addEventListener('click', async () => {
+      handle.close();
+      await command('play', { context_uri: uri });
+      command('shuffle', { state: true });
+    });
+
+    try {
+      const detail = await api.get(`/api/music/playlists/${encodeURIComponent(playlist.id)}`, { timeoutMs: 20000 });
+      if (playlistSheet?.uri !== uri) return;   // arket ble lukket i mellomtiden
+      body.querySelector('[data-meta]').textContent =
+        `${playlist.owner ? `av ${playlist.owner} · ` : ''}${detail.tracks.length} sanger · ${fmtDuration(detail.total_ms)}`;
+      const list = body.querySelector('[data-tracks]');
+      list.innerHTML = detail.tracks.map((t) => `
+        <button class="pl-track" data-uri="${escapeHtml(t.uri)}" data-index="${t.index}">
+          <span class="pl-num">${t.index + 1}</span>
+          <span class="pl-title-wrap"><span class="pl-title">${escapeHtml(t.title)}</span><span class="pl-artist">${escapeHtml(t.artists)}</span></span>
+          <span class="pl-dur">${fmtTime(t.duration_ms)}</span>
+        </button>`).join('') || '<div class="muted">Lista er tom.</div>';
+      list.querySelectorAll('.pl-track').forEach((b) => b.addEventListener('click', () => {
+        command('play', { context_uri: uri, offset: Number(b.dataset.index) });
+      }));
+      highlightCurrentTrack();
+    } catch (err) {
+      body.querySelector('[data-tracks]').innerHTML = `<div class="dep-error">${escapeHtml(err.message)}</div>`;
+    }
+  }, { wide: true, onClose: () => { playlistSheet = null; } });
+}
+
+/** Marker sangen som spilles nå (og rull den inn i synsfeltet første gang). */
+function highlightCurrentTrack() {
+  const body = playlistSheet?.body;
+  if (!body || !data) return;
+  const current = data.state.context_uri === playlistSheet.uri ? data.state.track?.uri : null;
+  let first = true;
+  body.querySelectorAll('.pl-track').forEach((b) => {
+    const active = !!current && b.dataset.uri === current;
+    b.classList.toggle('is-active', active);
+    if (active && first && !playlistSheet.scrolled) {
+      b.scrollIntoView({ block: 'center' });
+      playlistSheet.scrolled = true;
+      first = false;
+    }
+  });
 }
 
 /* ---------- Kommandoer ---------- */
@@ -258,6 +332,12 @@ function renderRooms() {
 function fmtTime(ms) {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** "5 t 32 min" / "48 min" for hele spillelister. */
+function fmtDuration(ms) {
+  const min = Math.round(ms / 60000);
+  return min >= 60 ? `${Math.floor(min / 60)} t ${min % 60} min` : `${min} min`;
 }
 
 /** Fast, "tilfeldig" farge per navn til spillelister uten bilde. */

@@ -417,6 +417,32 @@
 .playlist-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .playlist-meta { color: var(--muted); font-size: .85rem; }
 
+/* Spilleliste-arket */
+.pl-head { display: flex; gap: 20px; align-items: center; margin-bottom: 14px; }
+.pl-cover { width: 120px; height: 120px; flex: none; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); display: flex; align-items: center; justify-content: center; }
+.pl-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pl-info { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pl-actions { display: flex; gap: 12px; }
+.pl-tracks { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.pl-track {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 60px;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.pl-track:active { background: var(--surface-3); }
+.pl-track.is-active { background: var(--surface-2); }
+.pl-track.is-active .pl-title, .pl-track.is-active .pl-num { color: var(--accent); }
+.pl-num { color: var(--muted); text-align: center; font-weight: 600; }
+.pl-title-wrap { display: flex; flex-direction: column; min-width: 0; }
+.pl-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-artist { color: var(--muted); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-dur { color: var(--muted); text-align: right; }
+
 .room-hint { margin-bottom: 14px; }
 .room-list { display: flex; flex-direction: column; gap: 12px; }
 .room-row { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 1.4fr); gap: 14px; align-items: center; }
