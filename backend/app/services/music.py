@@ -55,11 +55,33 @@ class MusicService:
             ov = await self.spotify.overview()
             ov.engine = "spotify"
             return ov
-        state = await self.sonos.state()
+        state = await self._enrich_from_spotify(await self.sonos.state())
         rooms = await self.sonos.rooms()
         playlists, warning = await self._playlists()
         return MusicOverview(ready=True, engine="sonos", state=state, devices=rooms, playlists=playlists,
                              warning=warning, fetched_at=datetime.now(timezone.utc).isoformat())
+
+    async def _enrich_from_spotify(self, state):
+        """Spiller Sonos via Spotify Connect (startet fra Spotify-appen), vet Sonos lite om
+        sangen. Da hentes sang, cover, framdrift og spilleliste fra Spotify – men bare hvis
+        Spotify sier at det er nettopp dette rommet som spiller."""
+        if state.source != "connect" or self.spotify is None or not self.spotify.logged_in or not state.device:
+            return state
+        try:
+            sp = await self.spotify.state()
+        except ServiceError as exc:
+            log.debug("Fikk ikke Spotify-tilstand: %s", exc.message)
+            return state
+        if not sp.active or not sp.track or not sp.device:
+            return state
+        room = state.device.name.split(" + ")[0].strip().lower()
+        if not sp.device.name.strip().lower().startswith(room):
+            return state   # Spotify spiller et annet sted (f.eks. på mobilen)
+        state.track = sp.track
+        state.progress_ms = sp.progress_ms
+        state.context_uri = sp.context_uri
+        state.shuffle = sp.shuffle
+        return state
 
     # --- kommandoer: går til Sonos hvis den finnes, ellers Spotify ---------------
 

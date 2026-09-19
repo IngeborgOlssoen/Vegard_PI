@@ -281,6 +281,11 @@ dem, hvilken Spotify-variant Sonos-systemet bruker og hva som spilles.
 sanger som kom inn. Kommer det ingen, er Spotify ikke lagt til i Sonos-appen
 med kontoen spillelistene tilhører.
 
+**Startet fra Spotify-appen** (Spotify Connect): volum, pause og rom styres
+lokalt, mens neste/forrige og spoling går via Spotify, og sang, cover og
+framdrift hentes derfra. Sonos Radio, TV og AirPlay kan ikke hoppes eller
+spoles i, og panelet gråner de knappene.
+
 **Uten Sonos:** med bare `spotify.enabled` går avspillingen via Spotify Connect,
 som virker for mange andre høyttalere. `python scripts/spotify_status.py` viser
 hva Spotify svarer, inkludert hvilke høyttalere den kjenner til.

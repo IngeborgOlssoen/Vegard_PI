@@ -411,3 +411,39 @@ def test_skip_falls_back_to_queue_position_when_sonos_refuses():
     with pytest.raises(ServiceError) as exc:
         svc._skip_sync(1)
     assert exc.value.code == "sonos_transition" and "kilde: connect" in exc.value.message and "annen app" in exc.value.message
+
+
+async def test_connect_mode_takes_track_and_progress_from_spotify():
+    from app.services.spotify import Device, PlayerState, Track
+
+    class _SonosConnect:
+        async def state(self):
+            return PlayerState(active=True, is_playing=True, source="connect", external=True, progress_ms=0,
+                               device=Device(id="c", name="Cocina + Sala", is_active=True, volume=30),
+                               track=Track(title="?", artists="", duration_ms=0, uri="x-sonos-vli:x"))
+
+        async def rooms(self):
+            return []
+
+    class _SpotifyState:
+        logged_in = True
+
+        def __init__(self, device_name):
+            self.device_name = device_name
+
+        async def state(self, fresh=False):
+            return PlayerState(active=True, is_playing=True, progress_ms=42_000, shuffle=True,
+                               context_uri="spotify:playlist:p", device=Device(id="s", name=self.device_name),
+                               track=Track(title="Lyse netter", artists="Sondre Justad", duration_ms=200_000,
+                                           uri="spotify:track:t", image="img"))
+
+        async def playlists(self):
+            return []
+
+    ov = await MusicService(sonos=_SonosConnect(), spotify=_SpotifyState("Cocina")).overview()
+    assert ov.state.track.title == "Lyse netter" and ov.state.progress_ms == 42_000
+    assert ov.state.context_uri == "spotify:playlist:p" and ov.state.device.name == "Cocina + Sala"
+
+    # Spotify spiller på mobilen, ikke i rommet → behold det Sonos sier
+    ov = await MusicService(sonos=_SonosConnect(), spotify=_SpotifyState("iPhone")).overview()
+    assert ov.state.track.title == "?"
