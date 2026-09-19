@@ -17,10 +17,11 @@ from fastapi.staticfiles import StaticFiles
 from app.buttons import ButtonManager
 from app.config import FRONTEND_DIR, AppConfig, load_config
 from app.errors import install_error_handlers
-from app.routers import bus, lights, system, weather
+from app.routers import bus, lights, spotify, system, weather
 from app.services.bus import BusService
 from app.services.lights import LightService
 from app.services.scenes import SceneStore
+from app.services.spotify import SimSpotifyService, SpotifyService
 from app.services.weather import WeatherService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -40,6 +41,11 @@ def create_app(config: AppConfig) -> FastAPI:
         app.state.lights = LightService(config.lights, app.state.scenes)
         app.state.bus = BusService(config.bus, app.state.http)
         app.state.weather = WeatherService(config.weather, app.state.http)
+        if config.spotify.simulate:
+            app.state.spotify = SimSpotifyService(config.spotify)
+        else:
+            app.state.spotify = SpotifyService(config.spotify, app.state.http,
+                                               config.resolve(config.spotify.token_file))
         await app.state.lights.start()
         app.state.buttons = ButtonManager(config.buttons, app.state.lights, asyncio.get_running_loop())
         app.state.buttons.start()
@@ -58,6 +64,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.include_router(lights.router, prefix="/api")
     app.include_router(bus.router, prefix="/api")
     app.include_router(weather.router, prefix="/api")
+    app.include_router(spotify.router, prefix="/api")
 
     # Frontend: statiske filer fra frontend/-mappa. html=True gjør at "/" gir index.html.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

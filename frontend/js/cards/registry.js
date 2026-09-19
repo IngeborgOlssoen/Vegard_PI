@@ -6,6 +6,7 @@ import lights from './lights.js';
 import bus, { createBusCard } from './bus.js';
 import weather from './weather.js';
 import clock from './clock.js';
+import music from './music.js';
 
 registerCard(lights);
 registerCard(bus);                          // "bus": alle holdeplassene i ett kort
@@ -14,3 +15,4 @@ for (let i = 1; i <= 8; i++) {
 }
 registerCard(weather);
 registerCard(clock);
+registerCard(music);

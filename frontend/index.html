@@ -9,8 +9,10 @@
   <link rel="stylesheet" href="/css/cards.css">
 </head>
 <body>
-  <!-- Kortene legges inn her av js/app.js, ut fra layouten i config.yaml -->
-  <main id="dashboard" class="dashboard" aria-label="Hjemmepanel"></main>
+  <!-- Sidene (med kortene) legges inn her av js/app.js, ut fra config.yaml.
+       Med flere sider sveiper man sidelengs mellom dem. -->
+  <div id="pages" class="pages"></div>
+  <nav id="page-dots" class="page-dots" hidden aria-label="Sider"></nav>
 
   <!-- Fullskjerms "ark" (f.eks. detaljstyring av en pære) legges her -->
   <div id="sheet-root"></div>

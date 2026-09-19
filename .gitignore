@@ -13,3 +13,6 @@ config/config.yaml
 
 # Scener (scenes.example.json er malen som sjekkes inn)
 config/scenes.json
+
+# Spotify-innlogging (lages av scripts/spotify_login.py)
+config/spotify_token.json

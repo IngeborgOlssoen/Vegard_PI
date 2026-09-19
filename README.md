@@ -15,13 +15,13 @@ på en vanlig PC først.
 | Drift | systemd for backend + autostart for kiosk | Backend starter ved boot og restartes automatisk ved feil. |
 | Buss | Entur Journey Planner (GraphQL) | Ruters sanntidsdata er tilgjengelig gratis via Entur, uten API-nøkkel. |
 | Vær | MET Locationforecast 2.0 | Samme data som Yr, gratis, uten nøkkel (krever bare en identifiserende User-Agent). |
+| Musikk | Spotify Web API | Sonos-høyttalere vises som Spotify Connect-enheter, så én integrasjon gir avspilling, volum, romvalg og spillelister. Går via Spotifys sky, så Pi-en trenger ikke finne høyttalerne på hjemmenettet. |
 | Konfig | `config/config.yaml` + `config/scenes.json` | Alt du vil endre (pærer, holdeplass, sted, layout, scener) ligger i to lesbare filer. |
 
-**Én skjerm eller flere?** Én skjerm. Verdien i et slikt panel er at du ser buss og vær
-med et blikk, og at lyset er ett trykk unna. Sveiping mellom sider på en kiosk-skjerm
-er lett å bomme på. Løsningen er at hovedskjermen viser alle kortene, mens detaljstyring
-av en pære (dimming, farge) åpnes som et stort «ark» oppå. Layouten er en liten tegning i
-`config.yaml`, så nye kort får plass uten å røre koden.
+**Én skjerm eller flere?** Hovedskjermen viser alt du trenger med et blikk (lys, buss,
+vær), og detaljstyring av en pære åpnes som et stort «ark» oppå. Ting som trenger hele
+skjermen, som musikk, får en egen side man sveiper til. Sidene og layouten er små
+tegninger i `config.yaml`, så nye kort får plass uten å røre koden.
 
 ## Oppbygging
 
@@ -36,6 +36,7 @@ backend/
       scenes.py        lys-scener (config/scenes.json)
       bus.py           Entur (Ruter sanntid)
       weather.py       MET Locationforecast
+      spotify.py       Spotify Web API (musikk på Sonos m.fl.)
     routers/           HTTP-endepunktene under /api/...
     buttons.py         fysiske knapper via GPIO (valgfritt)
   tests/               pytest
@@ -45,7 +46,7 @@ frontend/
   js/
     app.js             bygger rutenettet, oppdaterer kortene, håndterer feil
     api.js             fetch med tidsavbrudd og norske feilmeldinger
-    cards/             ett kort per fil: lights.js, bus.js, weather.js, clock.js
+    cards/             ett kort per fil: lights.js, bus.js, weather.js, clock.js, music.js
     components/        sheet.js (ark/dialog), toast.js, icons.js, color.js
 config/
   config.example.yaml  mal → kopier til config.yaml
@@ -94,6 +95,8 @@ og du kan teste dem uavhengig ved å endre `dashboard.layout` i `config.yaml`:
 3. **Vær** – `layout: ["weather"]`. Sett `weather.lat/lon` og `user_agent`
    (`python scripts/find_place.py "Sted"`).
 4. **Samlet** – standardlayouten viser alt sammen, og `clock` kan legges til.
+5. **Musikk** – sett `spotify.simulate: true` og legg til en side med `music`
+   for å se den falske spilleren. Ekte Spotify: se «Musikk (Spotify)».
 
 ## Konfigurasjon
 
@@ -202,24 +205,54 @@ smale busskort bruker mindre tekst, og et lavt værkort dropper dagsvarselet.
 (bruker Kartverkets stedsnavnsøk). MET krever at `user_agent` inneholder noe som
 identifiserer deg (e-post eller nettadresse), ellers kan de blokkere kallene.
 
-### Layout
+### Layout og sider
 
 ```yaml
 dashboard:
-  layout:
-    - "lights lights bus"
-    - "lights lights weather"
+  pages:
+    - name: Hjem
+      layout:
+        - "lights lights bus"
+        - "lights lights weather"
+        - "clock  clock  weather"
+    - name: Musikk
+      layout:
+        - "music"
+  home_after_seconds: 120
 ```
 
 Hvert ord er en kort-id, og et kort dekker alle cellene der id-en står. Alle
-rader må ha like mange ord. Eksempel med klokke:
+rader på en side må ha like mange ord. Med flere sider sveiper du sidelengs
+mellom dem (piltastene virker også på PC), og prikkene nederst viser hvor du
+er. `home_after_seconds` sender skjermen tilbake til første side etter en
+stund uten berøring (0 = aldri). Et kort kan bare brukes på én side.
 
-```yaml
-  layout:
-    - "lights lights bus"
-    - "lights lights weather"
-    - "clock  clock  weather"
-```
+### Musikk (Spotify)
+
+Musikksiden styrer avspilling gjennom Spotify. Sonos-høyttalere (og andre
+Spotify Connect-enheter) dukker opp som rom du kan velge, og spillelistene
+dine vises som store knapper. Krever Spotify Premium.
+
+1. Legg Spotify-kontoen til i Sonos-appen (så høyttalerne vises i Spotify).
+2. Gå til <https://developer.spotify.com/dashboard>, lag en app (navn f.eks.
+   Hjemmepanel), sett Redirect URI til nøyaktig `http://127.0.0.1:8888/callback`
+   og kryss av for Web API. Kopier «Client ID».
+3. I `config.yaml`: `spotify.enabled: true`, `spotify.client_id: <id>`, og legg
+   til musikksiden under `dashboard.pages` (se over).
+4. Logg inn én gang fra en PC med nettleser (venv aktivert):
+
+   ```bash
+   python scripts/spotify_login.py
+   ```
+
+   Nettleseren åpner Spotify, du godkjenner, og nøkkelen lagres i
+   `config/spotify_token.json`. Backend fornyer den selv etterpå.
+5. Skal panelet kjøre på Pi-en, kopier nøkkelen dit:
+   `scp config/spotify_token.json pi@<pi-adresse>:~/hjemmepanel/config/`
+   (eller kjør innloggingen på Pi-en med skrivebord). Restart backend.
+
+`spotify.default_device` er rommet som brukes når ingenting spiller ennå.
+Vil du se siden på PC uten Spotify, sett `spotify.simulate: true`.
 
 ## Oppsett på Raspberry Pi 5
 

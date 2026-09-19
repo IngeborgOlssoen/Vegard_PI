@@ -16,11 +16,14 @@ async def frontend_config(request: Request) -> dict:
     cfg = request.app.state.config
     return {
         "title": cfg.dashboard.title,
-        "layout": cfg.dashboard.layout,
+        "pages": [p.model_dump() for p in cfg.dashboard.pages],
+        "home_after_seconds": cfg.dashboard.home_after_seconds,
         "lights": {"poll_interval_seconds": cfg.lights.poll_interval_seconds,
                    "simulate": cfg.lights.simulate},
         "bus": {"enabled": cfg.bus.enabled, "refresh_seconds": cfg.bus.refresh_seconds},
         "weather": {"enabled": cfg.weather.enabled,
                     "refresh_seconds": cfg.weather.refresh_seconds,
                     "place_name": cfg.weather.place_name},
+        "spotify": {"enabled": cfg.spotify.enabled, "simulate": cfg.spotify.simulate,
+                    "refresh_seconds": cfg.spotify.refresh_seconds},
     }

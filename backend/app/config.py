@@ -30,11 +30,28 @@ class ServerConfig(BaseModel):
     port: int = 8000
 
 
-class DashboardConfig(BaseModel):
-    title: str = "Hjemmepanel"
+class DashboardPage(BaseModel):
+    name: str = ""
     # Layouten er en liten "tegning" av skjermen, rad for rad. Hvert ord er
     # id-en til et kort, og et kort kan dekke flere celler ved å gjentas.
-    layout: list[str] = ["lights lights bus", "lights lights weather"]
+    layout: list[str]
+
+
+class DashboardConfig(BaseModel):
+    title: str = "Hjemmepanel"
+    # Én eller flere sider man sveiper mellom. Hver side har sin egen layout.
+    pages: list[DashboardPage] = Field(default_factory=list)
+    # Gammel, enkel form: én side. Fungerer fortsatt.
+    layout: list[str] = Field(default_factory=list)
+    # Gå tilbake til første side etter så mange sekunder uten berøring (0 = aldri)
+    home_after_seconds: int = 0
+
+    @model_validator(mode="after")
+    def _collect_pages(self):
+        if not self.pages:
+            layout = self.layout or ["lights lights bus", "lights lights weather"]
+            self.pages = [DashboardPage(name="Hjem", layout=layout)]
+        return self
 
 
 class BulbConfig(BaseModel):
@@ -97,6 +114,18 @@ class WeatherConfig(BaseModel):
     timeout_seconds: float = 10.0
 
 
+class SpotifyConfig(BaseModel):
+    enabled: bool = False
+    simulate: bool = False  # true = falsk spiller i minnet (for utvikling på PC)
+    client_id: str = ""  # fra developer.spotify.com/dashboard
+    redirect_uri: str = "http://127.0.0.1:8888/callback"  # må være registrert på appen hos Spotify
+    token_file: str = "config/spotify_token.json"  # lages av scripts/spotify_login.py
+    refresh_seconds: int = 5  # hvor ofte skjermen spør om hva som spilles
+    default_device: Optional[str] = None  # høyttaler (Sonos-rom) som brukes når ingenting spiller
+    playlist_limit: int = 30
+    timeout_seconds: float = 8.0
+
+
 class ButtonConfig(BaseModel):
     gpio: int  # BCM-nummer (f.eks. 17 = fysisk pinne 11)
     action: Literal["scene", "toggle_all", "all_on", "all_off", "toggle_bulb"]
@@ -123,6 +152,7 @@ class AppConfig(BaseModel):
     lights: LightsConfig = Field(default_factory=LightsConfig)
     bus: BusConfig = Field(default_factory=BusConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
+    spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     buttons: ButtonsConfig = Field(default_factory=ButtonsConfig)
 
     def resolve(self, relative_path: str) -> Path:

@@ -27,6 +27,15 @@ const PATHS = {
   wind: '<path d="M3 8h10a2.5 2.5 0 1 0-2.5-2.5M3 12h15a2.5 2.5 0 1 1-2.5 2.5M3 16h8a2 2 0 1 1-2 2"/>',
   drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
   thermometer: '<path d="M10 4a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 10v6"/>',
+  // musikk
+  play: '<path fill="currentColor" stroke="none" d="M7 4.5v15l12-7.5z"/>',
+  pause: '<path fill="currentColor" stroke="none" d="M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z"/>',
+  next: '<path fill="currentColor" stroke="none" d="M5 5v14l10-7zM17 5h2.5v14H17z"/>',
+  previous: '<path fill="currentColor" stroke="none" d="M19 5v14L9 12zM4.5 5H7v14H4.5z"/>',
+  shuffle: '<path d="M3 7h3.5l9 10H21M21 7h-5.5l-2 2.2M3 17h3.5l2-2.2M18.5 4.5L21 7l-2.5 2.5M18.5 14.5L21 17l-2.5 2.5"/>',
+  speaker: '<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="14.5" r="3.5"/><circle cx="12" cy="7.5" r="1"/>',
+  volume: '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  music: '<path d="M9 18.5V6l11-2.5v12.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
   // annet
   bus: '<rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 9.5h16M8 21v-3M16 21v-3M8 14.5h.01M16 14.5h.01"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',

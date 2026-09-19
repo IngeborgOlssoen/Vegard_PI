@@ -9,12 +9,21 @@ server:
 
 dashboard:
   title: Hjemmepanel
-  # Layouten er en "tegning" av skjermen, rad for rad. Hvert ord er id-en til
-  # et kort (lights, bus, weather, clock ...). Gjenta en id for å la kortet
-  # dekke flere celler. Alle rader må ha like mange ord.
-  layout:
-    - "lights lights bus"
-    - "lights lights weather"
+  # Skjermen har én eller flere sider man sveiper mellom. Hver side har en
+  # layout: en "tegning" av skjermen, rad for rad. Hvert ord er id-en til et
+  # kort (lights, bus, bus1, weather, clock, music ...). Gjenta en id for å la
+  # kortet dekke flere celler. Alle rader på en side må ha like mange ord.
+  pages:
+    - name: Hjem
+      layout:
+        - "lights lights bus"
+        - "lights lights weather"
+    # Ta med denne når Spotify er satt opp (se spotify: under):
+    # - name: Musikk
+    #   layout:
+    #     - "music"
+  # Gå tilbake til første side etter så mange sekunder uten berøring (0 = aldri)
+  home_after_seconds: 0
 
 lights:
   # true = simulerte pærer i minnet, fint for å utvikle og teste på PC.
@@ -73,6 +82,19 @@ weather:
   refresh_seconds: 600
   hours: 6
   days: 3
+
+spotify:
+  # Musikk via Spotify. Sonos-høyttalere dukker opp som enheter i Spotify, så
+  # avspilling, volum og valg av rom går gjennom Spotify. Krever Premium og en
+  # gratis "app" hos developer.spotify.com – se README, "Musikk (Spotify)".
+  enabled: false
+  simulate: false          # true = falsk spiller for å se siden på PC uten Spotify
+  client_id: ""            # Client ID fra developer.spotify.com/dashboard
+  redirect_uri: http://127.0.0.1:8888/callback   # må stå likt i appen hos Spotify
+  token_file: config/spotify_token.json          # lages av scripts/spotify_login.py
+  refresh_seconds: 5
+  default_device: null     # f.eks. Stue – rommet som brukes når ingenting spiller
+  playlist_limit: 30
 
 buttons:
   # Fysiske knapper koblet til GPIO på Pi-en (valgfritt, se README).
