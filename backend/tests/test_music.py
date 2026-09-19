@@ -303,3 +303,70 @@ def test_parse_playlist_tracks_handles_both_item_shapes():
     ]}]
     tracks = parse_playlist_tracks(pages)
     assert [(t.index, t.title, t.artists, t.image) for t in tracks] == [(0, "A", "X", "u"), (1, "B", "Y, Z", None)]
+
+
+class _Group:
+    def __init__(self, coordinator, members):
+        self.coordinator = coordinator
+        self.members = members
+
+
+class _Zone:
+    """Falsk SoCo-sone med egen transporttilstand og gruppe."""
+    def __init__(self, uid, name, state="STOPPED"):
+        self.uid, self.player_name, self.state = uid, name, state
+        self.is_visible, self.is_bridge = True, False
+        self.group = _Group(self, [self])
+
+    def get_current_transport_info(self):
+        return {"current_transport_state": self.state}
+
+
+def make_sonos(zones, default_room=None, selected=None):
+    import time as _time
+    from app.services.sonos import SonosService
+    svc = SonosService(SonosConfig(enabled=True, default_room=default_room))
+    svc._zones = {z.uid: z for z in zones}
+    svc._last_discovery = _time.monotonic()
+    svc._selected_uid = selected
+    return svc
+
+
+def test_target_follows_the_group_that_is_playing():
+    cocina, sala, bano = _Zone("c", "Cocina"), _Zone("s", "Sala", "PLAYING"), _Zone("b", "Baño")
+    svc = make_sonos([cocina, sala, bano], default_room="Cocina", selected="c")
+    assert svc._target_sync().player_name == "Sala"          # musikk startet i Sala fra Sonos-appen
+    assert svc._selected_uid == "s"
+
+    sala.state, cocina.state = "STOPPED", "PLAYING"           # så tilbake til Cocina
+    assert svc._target_sync().player_name == "Cocina"
+
+    cocina.state = "PAUSED_PLAYBACK"                          # pause i valgt rom: bli der
+    assert svc._target_sync().player_name == "Cocina"
+
+    sala.state = "PLAYING"                                    # ... til noe annet faktisk spiller
+    assert svc._target_sync().player_name == "Sala"
+
+
+def test_target_prefers_default_room_when_several_play_and_uses_coordinator():
+    cocina, sala, bano = _Zone("c", "Cocina", "PLAYING"), _Zone("s", "Sala", "PLAYING"), _Zone("b", "Baño")
+    bano.group = _Group(cocina, [cocina, bano])                # Baño er med i Cocinas gruppe
+    cocina.group = bano.group
+    svc = make_sonos([sala, bano, cocina], default_room="Cocina")
+    assert svc._target_sync().player_name == "Cocina"
+
+    svc = make_sonos([sala, bano, cocina], selected="b")      # valgt rom er medlem → styr koordinatoren
+    assert svc._target_sync().player_name == "Cocina"
+
+    quiet = make_sonos([_Zone("x", "Xyz"), _Zone("a", "Abc")])   # ingenting spiller, ingen valg → første
+    assert quiet._target_sync().player_name == "Abc"
+
+
+def test_playback_source_from_uri():
+    from app.services.sonos import playback_source
+    assert playback_source("x-sonos-spotify:spotify%3atrack%3aabc?sid=9") == "queue"
+    assert playback_source("x-sonos-vli:RINCON_1:2,spotify:abc") == "connect"
+    assert playback_source("x-sonos-vli:RINCON_1:1,airplay:abc") == "airplay"
+    assert playback_source("x-sonosapi-stream:s1234?sid=254") == "radio"
+    assert playback_source("x-sonos-htastream:RINCON_1:spdif") == "tv"
+    assert playback_source("") == "idle" and playback_source(None) == "idle"

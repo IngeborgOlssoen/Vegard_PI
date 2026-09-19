@@ -55,6 +55,25 @@ def spotify_track_uri(sonos_uri: Optional[str]) -> Optional[str]:
     return f"spotify:track:{m.group(1)}" if m else None
 
 
+def playback_source(uri: Optional[str]) -> str:
+    """Hvor musikken kommer fra, ut fra Sonos sin URI for det som spilles."""
+    u = (uri or "").lower()
+    if not u:
+        return "idle"
+    if u.startswith("x-sonos-vli:"):
+        if "spotify" in u:
+            return "connect"
+        if "airplay" in u:
+            return "airplay"
+        return "external"
+    if u.startswith(("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:", "x-sonosapi-hls",
+                     "aac://", "hls-radio:", "x-rincon-stream:")):
+        return "radio"
+    if u.startswith("x-sonos-htastream:"):
+        return "tv"
+    return "queue"
+
+
 def format_clock(ms: int) -> str:
     """Millisekunder → "H:MM:SS" slik Sonos vil ha det."""
     total = max(0, int(ms)) // 1000
@@ -226,25 +245,56 @@ class SonosService:
             raise ServiceError("Fant ikke rommet. Er høyttaleren på?", code="sonos_no_room", status=404)
         return zone
 
-    def _target_sync(self):
-        """Rommet som styres: det valgte, ellers standardrommet, ellers et som spiller, ellers første."""
-        zones = list(self._zones.values())
-        zone = self._zones.get(self._selected_uid or "")
-        if zone is None and self.cfg.default_room:
-            wanted = self.cfg.default_room.strip().lower()
-            zone = next((z for z in zones if z.player_name.lower() == wanted), None)
-        if zone is None:
-            for z in zones:
-                try:
-                    if z.is_coordinator and z.get_current_transport_info()["current_transport_state"] == "PLAYING":
-                        zone = z
-                        break
-                except Exception:
-                    continue
-        if zone is None:
-            zone = sorted(zones, key=lambda z: z.player_name)[0]
-        self._selected_uid = zone.uid
+    @staticmethod
+    def _coordinator(zone):
         return zone.group.coordinator if zone.group else zone
+
+    @staticmethod
+    def _is_playing(coord) -> bool:
+        try:
+            return coord.get_current_transport_info().get("current_transport_state") == "PLAYING"
+        except Exception:
+            return False
+
+    def _default_zone(self):
+        if self.cfg.default_room:
+            wanted = self.cfg.default_room.strip().lower()
+            return next((z for z in self._zones.values() if z.player_name.lower() == wanted), None)
+        return None
+
+    def _target_sync(self):
+        """Rommet (gruppa) som styres.
+
+        1. Spiller gruppa til det valgte rommet, styrer vi den.
+        2. Ellers: spiller en annen gruppe, følger vi den – f.eks. når musikken er
+           startet fra Sonos-appen i et annet rom. Standardrommet vinner hvis flere spiller.
+        3. Ellers det valgte rommet, ellers standardrommet, ellers første rom.
+        """
+        zones = sorted(self._zones.values(), key=lambda z: z.player_name)
+        selected = self._zones.get(self._selected_uid or "")
+        if selected is not None:
+            coord = self._coordinator(selected)
+            if self._is_playing(coord):
+                return coord
+
+        coordinators = []
+        for z in zones:
+            c = self._coordinator(z)
+            if all(c.uid != other.uid for other in coordinators):
+                coordinators.append(c)
+        playing = [c for c in coordinators if self._is_playing(c)]
+        if playing:
+            default = self._default_zone()
+            default_coord_uid = self._coordinator(default).uid if default is not None else None
+            chosen = next((c for c in playing if c.uid == default_coord_uid), playing[0])
+            if selected is None or chosen.uid != self._coordinator(selected).uid:
+                log.info("Sonos: følger «%s», som spiller", chosen.player_name)
+            self._selected_uid = chosen.uid
+            return chosen
+
+        zone = selected or self._default_zone() or zones[0]
+        self._selected_uid = zone.uid
+        return self._coordinator(zone)
 
     # --- lesing -----------------------------------------------------------------
 
@@ -262,9 +312,10 @@ class SonosService:
             track = Track(title=title, artists=info.get("artist") or "", album=info.get("album") or "",
                           image=info.get("album_art") or None, duration_ms=parse_clock(info.get("duration")),
                           uri=spotify_track_uri(uri) or uri)
+        source = playback_source(uri) if (track is not None or transport == "PLAYING") else "idle"
         return PlayerState(active=track is not None or transport == "PLAYING", is_playing=transport == "PLAYING",
                            progress_ms=parse_clock(info.get("position")), device=device, track=track,
-                           context_uri=self._last_context, external=uri.startswith("x-sonos-vli:"))
+                           context_uri=self._last_context, external=uri.startswith("x-sonos-vli:"), source=source)
 
     async def state(self, fresh: bool = False) -> PlayerState:
         await self.ensure_zones()
@@ -444,7 +495,8 @@ class SimSonosService:
             track = Track(title=title, artists=artist, album=album, duration_ms=214_000,
                           uri=f"spotify:track:sim{self.track_index}")
         return PlayerState(active=track is not None, is_playing=self.is_playing, progress_ms=self._progress(),
-                           device=device, track=track, context_uri=self._last_context)
+                           device=device, track=track, context_uri=self._last_context,
+                           source="queue" if track is not None else "idle")
 
     async def rooms(self) -> list[Device]:
         coord = self._coord()

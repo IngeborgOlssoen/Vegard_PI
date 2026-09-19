@@ -381,6 +381,7 @@
 .slider-volume::-webkit-slider-thumb { width: 44px; height: 44px; }
 .music-volume-value { min-width: 48px; text-align: right; color: var(--muted); font-size: .95rem; }
 .music-device { justify-content: flex-start; }
+.music-source { font-size: .9rem; min-height: 1.2em; margin-top: -4px; }
 .music-device span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .music-playlists { display: flex; flex-direction: column; min-height: 0; }

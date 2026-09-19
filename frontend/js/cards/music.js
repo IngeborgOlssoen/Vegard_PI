@@ -14,6 +14,15 @@ let lastSync = 0;            // når progress_ms sist ble hentet (for lokal tell
 let volumeDragging = false;
 let pendingVolume = null;
 let seekDragging = false;
+
+const SOURCE_TEXT = {
+  queue: '',                                  // vanlig: Sonos spiller fra køen
+  connect: 'Startet fra Spotify-appen',       // Spotify Connect – hopp og spoling går via Spotify
+  airplay: 'AirPlay',
+  radio: 'Radio',
+  tv: 'TV',
+  external: 'Styrt fra en annen app',
+};
 let renderedPlaylists = '';
 let roomsSheet = null;       // åpent rom-ark: { handle, body }
 
@@ -54,6 +63,7 @@ export default {
             <span class="music-volume-value" data-volume-value></span>
           </div>
           <button class="btn music-device" data-act="device">${icon('speaker')}<span data-device>Velg rom</span></button>
+          <div class="music-source muted" data-source></div>
         </div>
         <div class="music-playlists">
           <div class="music-section-title">Spillelister</div>
@@ -141,6 +151,11 @@ function render() {
   q('[data-volume-value]').textContent = volume != null ? `${vol.value} %` : '';
 
   q('[data-device]').textContent = s.device ? `Spilles på ${s.device.name}` : 'Velg rom';
+  q('[data-source]').textContent = SOURCE_TEXT[s.source] || '';
+  // Radio, TV og AirPlay kan verken hoppes eller spoles i fra panelet
+  const fixed = ['radio', 'tv', 'airplay', 'external'].includes(s.source);
+  for (const act of ['next', 'previous']) q(`[data-act=${act}]`).disabled = fixed;
+  q('[data-seek]').classList.toggle('is-fixed', fixed);
   renderProgress();
   renderPlaylists();
   if (roomsSheet) renderRooms();
@@ -152,7 +167,7 @@ function renderProgress() {
   let pos = s.progress_ms || 0;
   if (s.is_playing) pos = Math.min(dur, pos + (Date.now() - lastSync));
   const seek = root.querySelector('[data-seek]');
-  seek.disabled = !dur;
+  seek.disabled = !dur || seek.classList.contains('is-fixed');
   if (!seekDragging) {
     seek.value = dur ? Math.round((pos / dur) * 1000) : 0;
     root.querySelector('[data-pos]').textContent = fmtTime(pos);

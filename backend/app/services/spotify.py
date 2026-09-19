@@ -80,6 +80,9 @@ class PlayerState(BaseModel):
     # Sonos: true når avspillingen styres av en annen app (Spotify Connect, AirPlay).
     # Da kan ikke høyttaleren selv hoppe i køen; neste/forrige må gå via Spotify.
     external: bool = False
+    # Hvor musikken kommer fra: queue (Sonos-køen, styres helt lokalt), connect
+    # (Spotify Connect, startet fra Spotify-appen), airplay, radio, tv, external, idle
+    source: str = "idle"
 
 
 class Playlist(BaseModel):

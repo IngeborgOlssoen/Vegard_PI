@@ -75,6 +75,7 @@ class MusicService:
         try:
             await getattr(player, name)(*args)
         except ServiceError as exc:
+            log.warning("Musikk: «%s» feilet (%s): %s", name, exc.code, exc.message)
             if exc.code != "sonos_transition":
                 raise
             if self.spotify is not None and self.spotify.logged_in:
