@@ -14,6 +14,7 @@ import asyncio
 import sys
 
 from pywizlight import wizlight
+from pywizlight.exceptions import WizLightConnectionError, WizLightTimeOutError
 
 
 async def main() -> None:
@@ -40,8 +41,8 @@ async def main() -> None:
         print(f"      ip: {ip}")
         print(f"      mac: {mac}")
         print("\nTips: gi pæra fast IP i ruteren (DHCP-reservasjon), så adressen ikke endrer seg.")
-    except asyncio.TimeoutError:
-        print(f"\nIngen svar fra {ip}.")
+    except (asyncio.TimeoutError, WizLightTimeOutError, WizLightConnectionError, OSError) as exc:
+        print(f"\nIngen svar fra {ip} ({type(exc).__name__}).")
         print("  - Stemmer IP-en? Se WiZ-appen → pæra → innstillinger → enhetsinformasjon.")
         print("  - Er pæra skrudd på med bryteren, og er den grønn/online i WiZ-appen?")
         print("  - Har pæra en adresse i samme nett som denne maskinen (f.eks. begge 10.0.0.x)?")
