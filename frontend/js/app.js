@@ -80,6 +80,7 @@ function createCardElement(id, card) {
 
 /** Monterer et kort og starter oppdateringsløkka for det. */
 function startCard(card, el, config) {
+  const titleEl = el.querySelector('.card-title');
   const statusEl = el.querySelector('.card-status');
   const errorEl = el.querySelector('.card-error');
   const body = el.querySelector('.card-body');
@@ -87,6 +88,7 @@ function startCard(card, el, config) {
   const ctx = {
     config,
     showToast,
+    setTitle(text) { titleEl.textContent = text; },
     setStatus(text, { loading = false } = {}) {
       statusEl.textContent = text || '';
       statusEl.classList.toggle('is-loading', loading);

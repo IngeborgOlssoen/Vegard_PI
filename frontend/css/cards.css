@@ -26,8 +26,8 @@
   gap: 10px;
   padding: 14px 18px 8px;
 }
-.card-title { font-size: 1.15rem; font-weight: 700; flex: 1; }
-.card-status { font-size: .85rem; color: var(--muted); }
+.card-title { font-size: 1.15rem; font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-status { font-size: .85rem; color: var(--muted); white-space: nowrap; }
 .card-status.is-loading::after {
   content: "";
   display: inline-block;
@@ -157,3 +157,48 @@
 .swatch { height: var(--touch); border-radius: var(--radius-sm); border: 3px solid transparent; }
 .swatch.is-active { border-color: #fff; }
 .swatch:active { transform: scale(.95); }
+
+/* ======================================================================
+   Buss (cards/bus.js)
+   ====================================================================== */
+.bus { height: 100%; }
+.dep-list { display: flex; flex-direction: column; }
+.dep-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dep-row:last-child { border-bottom: 0; }
+.dep-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 1.1rem;
+  background: #e60000;   /* Ruter-rødt for buss */
+  color: #fff;
+}
+.dep-line.mode-tram { background: #0b91ef; }
+.dep-line.mode-metro { background: #ec700c; }
+.dep-line.mode-rail { background: #555c68; }
+.dep-line.mode-water { background: #14a3a3; }
+.dep-dest {
+  font-weight: 600;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dep-platform { color: var(--muted); font-size: .85rem; font-weight: 400; margin-left: 8px; }
+.dep-time { font-weight: 700; font-size: 1.25rem; white-space: nowrap; }
+.dep-time.is-now { color: var(--accent); }
+.dep-time.is-scheduled { color: var(--muted); font-weight: 500; font-size: 1.1rem; }
+.dep-row.is-cancelled .dep-dest, .dep-row.is-cancelled .dep-time { text-decoration: line-through; color: var(--danger); }

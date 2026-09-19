@@ -9,12 +9,14 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIR, AppConfig, load_config
 from app.errors import install_error_handlers
-from app.routers import lights, system
+from app.routers import bus, lights, system
+from app.services.bus import BusService
 from app.services.lights import LightService
 from app.services.scenes import SceneStore
 
@@ -29,11 +31,15 @@ def create_app(config: AppConfig) -> FastAPI:
     async def lifespan(app: FastAPI):
         # Alt som skal startes/stoppes sammen med serveren settes opp her.
         log.info("Hjemmepanel starter")
+        # Én delt HTTP-klient for alt som går ut på nett (Entur, MET).
+        app.state.http = httpx.AsyncClient(headers={"Accept": "application/json"})
         app.state.scenes = SceneStore(config.resolve(config.lights.scenes_file))
         app.state.lights = LightService(config.lights, app.state.scenes)
+        app.state.bus = BusService(config.bus, app.state.http)
         await app.state.lights.start()
         yield
         await app.state.lights.stop()
+        await app.state.http.aclose()
         log.info("Hjemmepanel stopper")
 
     app = FastAPI(title="Hjemmepanel", lifespan=lifespan)
@@ -43,6 +49,7 @@ def create_app(config: AppConfig) -> FastAPI:
     # API-ruter (alle under /api)
     app.include_router(system.router, prefix="/api")
     app.include_router(lights.router, prefix="/api")
+    app.include_router(bus.router, prefix="/api")
 
     # Frontend: statiske filer fra frontend/-mappa. html=True gjør at "/" gir index.html.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
