@@ -50,12 +50,14 @@ PLAYLISTS_CACHE_SECONDS = 600.0
 # ---------------------------------------------------------------------------
 
 class Device(BaseModel):
+    """En høyttaler / et rom."""
     id: str
     name: str
     type: str = "Speaker"
-    is_active: bool = False
+    is_active: bool = False        # spiller nå (Sonos: er med i gruppa som spiller)
     volume: Optional[int] = None
     supports_volume: bool = True
+    is_coordinator: bool = False   # Sonos: rommet som "eier" avspillingen i gruppa
 
 
 class Track(BaseModel):
@@ -89,6 +91,8 @@ class Playlist(BaseModel):
 class MusicOverview(BaseModel):
     ready: bool                    # false = ikke logget inn ennå
     message: Optional[str] = None  # forklaring når ready = false
+    engine: str = "spotify"        # "sonos" = avspilling styres lokalt på Sonos, "spotify" = via Spotify Connect
+    warning: Optional[str] = None  # advarsel som vises i kortet uten at det regnes som feil
     state: PlayerState = Field(default_factory=PlayerState)
     devices: list[Device] = Field(default_factory=list)
     playlists: list[Playlist] = Field(default_factory=list)

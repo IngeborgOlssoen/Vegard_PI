@@ -1,13 +1,14 @@
-"""HTTP-endepunkter for musikk (Spotify).
+"""HTTP-endepunkter for musikk (Sonos og/eller Spotify, se services/music.py).
 
-  GET  /api/spotify                    hva som spilles, høyttalere og spillelister
-  POST /api/spotify/play     {context_uri?, device_id?}   start spilleliste / fortsett
-  POST /api/spotify/pause
-  POST /api/spotify/next
-  POST /api/spotify/previous
-  POST /api/spotify/volume   {percent, device_id?}
-  POST /api/spotify/transfer {device_id}                  bytt høyttaler
-  POST /api/spotify/shuffle  {state}
+  GET  /api/music                        hva som spilles, rom/høyttalere og spillelister
+  POST /api/music/play      {context_uri?, device_id?}   start spilleliste / fortsett
+  POST /api/music/pause
+  POST /api/music/next
+  POST /api/music/previous
+  POST /api/music/volume    {percent, device_id?}        volum for gruppa, eller ett rom
+  POST /api/music/transfer  {device_id}                  velg rom/høyttaler
+  POST /api/music/rooms/{id}/toggle                      Sonos: legg til/fjern rom i gruppa
+  POST /api/music/shuffle   {state}
 Alle POST-ene svarer med samme innhold som GET, hentet like etter kommandoen.
 """
 import asyncio
@@ -16,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/spotify", tags=["spotify"])
+router = APIRouter(prefix="/music", tags=["music"])
 
 
 class PlayBody(BaseModel):
@@ -38,14 +39,14 @@ class ShuffleBody(BaseModel):
 
 
 def _svc(request: Request):
-    return request.app.state.spotify
+    return request.app.state.music
 
 
 async def _after(request: Request) -> dict:
-    # Spotify (og Sonos) trenger et lite øyeblikk før ny tilstand kan leses
-    await asyncio.sleep(0.4)
+    # Høyttalerne trenger et lite øyeblikk før ny tilstand kan leses
+    await asyncio.sleep(0.3)
     svc = _svc(request)
-    await svc.state(fresh=True)
+    await svc.refresh_state()
     return (await svc.overview()).model_dump()
 
 
@@ -87,6 +88,12 @@ async def volume(body: VolumeBody, request: Request) -> dict:
 @router.post("/transfer")
 async def transfer(body: TransferBody, request: Request) -> dict:
     await _svc(request).transfer(body.device_id)
+    return await _after(request)
+
+
+@router.post("/rooms/{device_id}/toggle")
+async def toggle_room(device_id: str, request: Request) -> dict:
+    await _svc(request).toggle_room(device_id)
     return await _after(request)
 
 

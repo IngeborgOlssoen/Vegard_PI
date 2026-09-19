@@ -24,6 +24,7 @@ async def frontend_config(request: Request) -> dict:
         "weather": {"enabled": cfg.weather.enabled,
                     "refresh_seconds": cfg.weather.refresh_seconds,
                     "place_name": cfg.weather.place_name},
-        "spotify": {"enabled": cfg.spotify.enabled, "simulate": cfg.spotify.simulate,
-                    "refresh_seconds": cfg.spotify.refresh_seconds},
+        "music": {"enabled": cfg.sonos.enabled or cfg.spotify.enabled,
+                  "engine": "sonos" if cfg.sonos.enabled else "spotify",
+                  "refresh_seconds": cfg.sonos.refresh_seconds if cfg.sonos.enabled else cfg.spotify.refresh_seconds},
     }

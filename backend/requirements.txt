@@ -4,6 +4,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 httpx>=0.26
 pywizlight>=0.5.14
+soco>=0.30
 pyyaml>=6.0
 pydantic>=2.5
 

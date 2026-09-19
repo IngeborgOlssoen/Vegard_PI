@@ -126,6 +126,24 @@ class SpotifyConfig(BaseModel):
     timeout_seconds: float = 8.0
 
 
+class SonosSpeakerConfig(BaseModel):
+    ip: str
+
+
+class SonosConfig(BaseModel):
+    """Lokal styring av Sonos-høyttalere (avspilling, volum, rom). Spillelister
+    kommer fra Spotify (spotify: over), avspillingen går rett til høyttalerne."""
+    enabled: bool = False
+    simulate: bool = False  # true = falske rom i minnet (for utvikling på PC)
+    # Tom liste = finn høyttalerne automatisk. Ellers IP til én av dem (resten
+    # finnes via den), nyttig hvis søk ikke virker gjennom en extender/mesh.
+    speakers: list[SonosSpeakerConfig] = Field(default_factory=list)
+    default_room: Optional[str] = None  # rommet som er valgt ved oppstart, f.eks. Stue
+    refresh_seconds: int = 3
+    timeout_seconds: float = 5.0
+    discovery_timeout_seconds: float = 5.0
+
+
 class ButtonConfig(BaseModel):
     gpio: int  # BCM-nummer (f.eks. 17 = fysisk pinne 11)
     action: Literal["scene", "toggle_all", "all_on", "all_off", "toggle_bulb"]
@@ -153,6 +171,7 @@ class AppConfig(BaseModel):
     bus: BusConfig = Field(default_factory=BusConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
+    sonos: SonosConfig = Field(default_factory=SonosConfig)
     buttons: ButtonsConfig = Field(default_factory=ButtonsConfig)
 
     def resolve(self, relative_path: str) -> Path:

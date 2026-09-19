@@ -1,5 +1,6 @@
-/* Musikkortet: hva som spilles, spill/pause/neste, volum, valg av høyttaler
-   (Sonos-rom) og spillelistene dine – alt via Spotify (backend /api/spotify).
+/* Musikkortet: hva som spilles, spill/pause/neste, volum, rom (Sonos) og
+   spillelistene dine (Spotify). Backend (/api/music) bestemmer hva som styres
+   lokalt på Sonos og hva som går via Spotify; kortet er det samme uansett.
    Laget for å fylle en hel side, men fungerer også i et mindre kort. */
 
 import { api } from '../api.js';
@@ -13,6 +14,7 @@ let lastSync = 0;            // når progress_ms sist ble hentet (for lokal tell
 let volumeDragging = false;
 let pendingVolume = null;
 let renderedPlaylists = '';
+let roomsSheet = null;       // åpent rom-ark: { handle, body }
 
 export default {
   id: 'music',
@@ -23,11 +25,11 @@ export default {
   mount(body, context) {
     root = body;
     ctx = context;
-    this.refreshMs = (context.config.spotify?.refresh_seconds ?? 5) * 1000;
+    this.refreshMs = (context.config.music?.refresh_seconds ?? 5) * 1000;
 
-    if (!context.config.spotify?.enabled) {
+    if (!context.config.music?.enabled) {
       body.innerHTML = `<div class="card-placeholder">Musikk er ikke skrudd på.<br>
-        Sett <code>spotify.enabled: true</code> i config.yaml og følg README.</div>`;
+        Sett <code>sonos.enabled: true</code> (og/eller <code>spotify.enabled</code>) i config.yaml, se README.</div>`;
       this.refresh = null;
       return;
     }
@@ -50,7 +52,7 @@ export default {
             <input type="range" class="slider slider-volume" data-volume min="0" max="100" step="1" aria-label="Volum">
             <span class="music-volume-value" data-volume-value></span>
           </div>
-          <button class="btn music-device" data-act="device">${icon('speaker')}<span data-device>Velg høyttaler</span></button>
+          <button class="btn music-device" data-act="device">${icon('speaker')}<span data-device>Velg rom</span></button>
         </div>
         <div class="music-playlists">
           <div class="music-section-title">Spillelister</div>
@@ -61,7 +63,7 @@ export default {
     body.querySelector('[data-act=toggle]').addEventListener('click', togglePlay);
     body.querySelector('[data-act=next]').addEventListener('click', () => command('next'));
     body.querySelector('[data-act=previous]').addEventListener('click', () => command('previous'));
-    body.querySelector('[data-act=device]').addEventListener('click', openDeviceSheet);
+    body.querySelector('[data-act=device]').addEventListener('click', openRoomsSheet);
 
     const vol = body.querySelector('[data-volume]');
     vol.addEventListener('pointerdown', () => { volumeDragging = true; });
@@ -79,11 +81,11 @@ export default {
   },
 
   async refresh() {
-    data = await api.get('/api/spotify');
+    data = await api.get('/api/music');
     lastSync = Date.now();
     render();
     if (!data.ready) return { warning: data.message };
-    return undefined;
+    return data.warning ? { warning: data.warning } : undefined;
   },
 
   tick() {
@@ -123,9 +125,10 @@ function render() {
   vol.disabled = !s.device || s.device.supports_volume === false;
   q('[data-volume-value]').textContent = volume != null ? `${vol.value} %` : '';
 
-  q('[data-device]').textContent = s.device ? `Spilles på ${s.device.name}` : 'Velg høyttaler';
+  q('[data-device]').textContent = s.device ? `Spilles på ${s.device.name}` : 'Velg rom';
   renderProgress();
   renderPlaylists();
+  if (roomsSheet) renderRooms();
 }
 
 function renderProgress() {
@@ -163,7 +166,7 @@ function renderPlaylists() {
 
 async function command(name, body = {}) {
   try {
-    data = await api.post(`/api/spotify/${name}`, body, { timeoutMs: 15000 });
+    data = await api.post(`/api/music/${name}`, body, { timeoutMs: 20000 });
     lastSync = Date.now();
     render();
   } catch (err) {
@@ -179,22 +182,55 @@ function togglePlay() {
   command(data.state.is_playing ? 'play' : 'pause');
 }
 
-function openDeviceSheet() {
+/** Arket med rommene: velg rom, legg til/fjern rom i gruppa som spiller, og volum per rom. */
+function openRoomsSheet() {
   if (!data?.ready) return;
-  openSheet('Spill på', (body, handle) => {
-    if (!data.devices.length) {
-      body.innerHTML = '<div class="muted">Fant ingen høyttalere. Er Sonos på, og er Spotify lagt til i Sonos-appen?</div>';
-      return;
-    }
-    body.innerHTML = `<div class="device-list">${data.devices.map((d) => `
-      <button class="btn device-btn ${d.is_active ? 'is-active' : ''}" data-id="${escapeHtml(d.id)}">
-        ${icon('speaker')}<span class="grow">${escapeHtml(d.name)}</span>
-        ${d.volume != null ? `<span class="muted">${d.volume} %</span>` : ''}
-      </button>`).join('')}</div>`;
-    body.querySelectorAll('.device-btn').forEach((b) => b.addEventListener('click', () => {
-      handle.close();
-      command('transfer', { device_id: b.dataset.id });
-    }));
+  const title = data.engine === 'sonos' ? 'Rom' : 'Spill på';
+  roomsSheet = {};
+  roomsSheet.handle = openSheet(title, (body) => {
+    roomsSheet.body = body;
+    renderRooms();
+  }, { onClose: () => { roomsSheet = null; } });
+}
+
+function renderRooms() {
+  const body = roomsSheet?.body;
+  if (!body) return;
+  if (!data.devices.length) {
+    body.innerHTML = `<div class="muted">${data.engine === 'sonos'
+      ? 'Fant ingen Sonos-høyttalere. Er de på, og på samme nett som panelet?'
+      : 'Fant ingen høyttalere. Er Sonos på, og er Spotify lagt til i Sonos-appen?'}</div>`;
+    return;
+  }
+  const sonos = data.engine === 'sonos';
+  const playing = data.state.is_playing;
+  const hint = sonos
+    ? (playing ? 'Trykk på et rom for å spille der også, eller for å ta det ut av gruppa.' : 'Trykk på rommet du vil spille i.')
+    : 'Trykk på høyttaleren du vil spille på.';
+  body.innerHTML = `
+    <div class="muted room-hint">${hint}</div>
+    <div class="room-list">${data.devices.map((d) => `
+      <div class="room-row ${d.is_active ? 'is-active' : ''}">
+        <button class="btn room-btn ${d.is_active ? 'is-active' : ''}" data-id="${escapeHtml(d.id)}">
+          ${icon(d.is_active ? 'check' : 'speaker')}<span class="grow">${escapeHtml(d.name)}</span>
+          ${d.is_coordinator && sonos && data.devices.filter((x) => x.is_active).length > 1 ? '<span class="room-tag">hoved</span>' : ''}
+        </button>
+        ${sonos ? `<div class="room-volume">${icon('volume')}
+          <input type="range" class="slider slider-volume" data-room-volume="${escapeHtml(d.id)}" min="0" max="100" value="${d.volume ?? 0}" aria-label="Volum ${escapeHtml(d.name)}">
+          <span class="music-volume-value" data-room-volume-value="${escapeHtml(d.id)}">${d.volume ?? ''}${d.volume != null ? ' %' : ''}</span></div>` : ''}
+      </div>`).join('')}</div>`;
+
+  body.querySelectorAll('.room-btn').forEach((b) => b.addEventListener('click', () => {
+    if (sonos) command(`rooms/${encodeURIComponent(b.dataset.id)}/toggle`);
+    else { roomsSheet.handle.close(); command('transfer', { device_id: b.dataset.id }); }
+  }));
+  body.querySelectorAll('[data-room-volume]').forEach((input) => {
+    const id = input.dataset.roomVolume;
+    const label = body.querySelector(`[data-room-volume-value="${CSS.escape(id)}"]`);
+    input.addEventListener('pointerdown', () => { volumeDragging = true; });
+    input.addEventListener('input', () => { label.textContent = `${input.value} %`; });
+    const done = () => { volumeDragging = false; command('volume', { percent: Number(input.value), device_id: id }); };
+    input.addEventListener('change', done);
   });
 }
 

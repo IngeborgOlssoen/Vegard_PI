@@ -15,7 +15,7 @@ på en vanlig PC først.
 | Drift | systemd for backend + autostart for kiosk | Backend starter ved boot og restartes automatisk ved feil. |
 | Buss | Entur Journey Planner (GraphQL) | Ruters sanntidsdata er tilgjengelig gratis via Entur, uten API-nøkkel. |
 | Vær | MET Locationforecast 2.0 | Samme data som Yr, gratis, uten nøkkel (krever bare en identifiserende User-Agent). |
-| Musikk | Spotify Web API | Sonos-høyttalere vises som Spotify Connect-enheter, så én integrasjon gir avspilling, volum, romvalg og spillelister. Går via Spotifys sky, så Pi-en trenger ikke finne høyttalerne på hjemmenettet. |
+| Musikk | Sonos lokalt (SoCo) + Spotify Web API | Sonos styres direkte på hjemmenettet: avspilling, volum per rom og gruppering virker alltid og raskt. Spotify brukes til spillelister og cover. (Spotify sitt API alene ser ikke Sonos-rom som står stille, og får ikke styre volum på dem.) |
 | Konfig | `config/config.yaml` + `config/scenes.json` | Alt du vil endre (pærer, holdeplass, sted, layout, scener) ligger i to lesbare filer. |
 
 **Én skjerm eller flere?** Hovedskjermen viser alt du trenger med et blikk (lys, buss,
@@ -36,7 +36,9 @@ backend/
       scenes.py        lys-scener (config/scenes.json)
       bus.py           Entur (Ruter sanntid)
       weather.py       MET Locationforecast
-      spotify.py       Spotify Web API (musikk på Sonos m.fl.)
+      sonos.py         Sonos lokalt (avspilling, rom, volum)
+      spotify.py       Spotify Web API (spillelister, cover)
+      music.py         setter Sonos og Spotify sammen for musikkortet
     routers/           HTTP-endepunktene under /api/...
     buttons.py         fysiske knapper via GPIO (valgfritt)
   tests/               pytest
@@ -95,8 +97,9 @@ og du kan teste dem uavhengig ved å endre `dashboard.layout` i `config.yaml`:
 3. **Vær** – `layout: ["weather"]`. Sett `weather.lat/lon` og `user_agent`
    (`python scripts/find_place.py "Sted"`).
 4. **Samlet** – standardlayouten viser alt sammen, og `clock` kan legges til.
-5. **Musikk** – sett `spotify.simulate: true` og legg til en side med `music`
-   for å se den falske spilleren. Ekte Spotify: se «Musikk (Spotify)».
+5. **Musikk** – sett `sonos.simulate: true` og `spotify.simulate: true`, og
+   legg til en side med `music` for å se den falske spilleren. Ekte oppsett:
+   se «Musikk (Sonos + Spotify)».
 
 ## Konfigurasjon
 
@@ -227,38 +230,54 @@ mellom dem (piltastene virker også på PC), og prikkene nederst viser hvor du
 er. `home_after_seconds` sender skjermen tilbake til første side etter en
 stund uten berøring (0 = aldri). Et kort kan bare brukes på én side.
 
-### Musikk (Spotify)
+### Musikk (Sonos + Spotify)
 
-Musikksiden styrer avspilling gjennom Spotify. Sonos-høyttalere (og andre
-Spotify Connect-enheter) dukker opp som rom du kan velge, og spillelistene
-dine vises som store knapper. Krever Spotify Premium.
+Musikksiden styrer Sonos-høyttalerne direkte på hjemmenettet: hva som
+spilles, spill/pause/neste, volum per rom og hvilke rom som spiller sammen.
+Spillelistene og coverbildene kommer fra Spotify-kontoen din, og en spilleliste
+startes ved at Sonos legger den i køen med sin egen Spotify-kobling.
 
-1. Legg Spotify-kontoen til i Sonos-appen (så høyttalerne vises i Spotify).
+**Sonos** (ingen innlogging, bare samme nett):
+
+```yaml
+sonos:
+  enabled: true
+  default_room: Stue      # rommet som er valgt når panelet starter
+```
+
+Panelet finner høyttalerne selv. Gjør det ikke det (f.eks. gjennom en
+extender), oppgi IP-en til én av dem under `speakers`; resten finnes via den.
+IP-en står i Sonos-appen under Innstillinger → System → Om systemet.
+
+**Spotify** (for spillelister; krever Premium og en gratis «app»):
+
+1. Legg Spotify-kontoen til i Sonos-appen (Innstillinger → Tjenester og stemme),
+   ellers kan ikke Sonos spille spillelistene.
 2. Gå til <https://developer.spotify.com/dashboard>, lag en app (navn f.eks.
    Hjemmepanel), sett Redirect URI til nøyaktig `http://127.0.0.1:8888/callback`
    og kryss av for Web API. Kopier «Client ID».
-3. I `config.yaml`: `spotify.enabled: true`, `spotify.client_id: <id>`, og legg
-   til musikksiden under `dashboard.pages` (se over).
+3. I `config.yaml`: `spotify.enabled: true` og `spotify.client_id: <id>`.
 4. Logg inn én gang fra en PC med nettleser (venv aktivert):
 
    ```bash
    python scripts/spotify_login.py
    ```
 
-   Nettleseren åpner Spotify, du godkjenner, og nøkkelen lagres i
-   `config/spotify_token.json`. Backend fornyer den selv etterpå.
+   Nøkkelen lagres i `config/spotify_token.json`, og backend fornyer den selv.
 5. Skal panelet kjøre på Pi-en, kopier nøkkelen dit:
    `scp config/spotify_token.json pi@<pi-adresse>:~/hjemmepanel/config/`
-   (eller kjør innloggingen på Pi-en med skrivebord). Restart backend.
 
-`spotify.default_device` er rommet som brukes når ingenting spiller ennå.
-Vil du se siden på PC uten Spotify, sett `spotify.simulate: true`.
+Legg til musikksiden under `dashboard.pages` (se «Layout og sider»), og restart
+backend. Vil du se siden på PC uten høyttalere, sett `sonos.simulate: true` og
+`spotify.simulate: true`.
 
-**Finner ikke panelet Sonos-høyttalerne?** Panelet viser bare enhetene Spotify
-selv kjenner til. `python scripts/spotify_status.py` viser nøyaktig hva Spotify
-svarer. Er lista tom: legg Spotify til i Sonos-appen (Innstillinger → Tjenester
-og stemme) med samme konto som du logget inn med, sjekk at rommene vises under
-«Koble til en enhet» i Spotify-appen, og spill noe på et rom derfra én gang.
+**Rom-arket** («Spilles på …»-knappen): trykk på et rom for å spille der. Spiller
+det allerede musikk, blir rommet med i gruppa; trykk igjen for å ta det ut.
+Hver rad har sin egen volumskyver, og skyveren på hovedsiden styrer hele gruppa.
+
+**Uten Sonos:** med bare `spotify.enabled` går avspillingen via Spotify Connect,
+som virker for mange andre høyttalere. `python scripts/spotify_status.py` viser
+hva Spotify svarer, inkludert hvilke høyttalere den kjenner til.
 
 ## Oppsett på Raspberry Pi 5
 
