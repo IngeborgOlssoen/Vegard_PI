@@ -370,3 +370,44 @@ def test_playback_source_from_uri():
     assert playback_source("x-sonosapi-stream:s1234?sid=254") == "radio"
     assert playback_source("x-sonos-htastream:RINCON_1:spdif") == "tv"
     assert playback_source("") == "idle" and playback_source(None) == "idle"
+
+
+def test_skip_falls_back_to_queue_position_when_sonos_refuses():
+    from soco.exceptions import SoCoUPnPException
+
+    class _QueueZone(_Zone):
+        def __init__(self):
+            super().__init__("c", "Cocina", "PLAYING")
+            self.jumped = []
+            self.refuse = True
+
+        def next(self):
+            if self.refuse:
+                raise SoCoUPnPException("UPnP Error 701 received: Transition not available", "701", "<xml/>")
+
+        def previous(self):
+            self.next()
+
+        def get_current_track_info(self):
+            return {"uri": "x-sonos-spotify:spotify%3atrack%3aabc?sid=9", "playlist_position": "5",
+                    "position": "0:01:00", "duration": "0:03:00", "title": "T"}
+
+        def play_from_queue(self, index):
+            self.jumped.append(index)
+
+    zone = _QueueZone()
+    svc = make_sonos([zone], selected="c")
+    svc._skip_sync(1)
+    svc._skip_sync(-1)
+    assert zone.jumped == [5, 3]          # 1-basert 5 → 0-basert 4, pluss/minus én
+
+    # Spotify Connect: ingen køposisjon å hoppe til → forklarende 701-melding med fakta
+    class _ConnectZone(_QueueZone):
+        def get_current_track_info(self):
+            return {"uri": "x-sonos-vli:RINCON_1:2,spotify:abc", "playlist_position": "1",
+                    "position": "0:00:00", "duration": "0:00:00", "title": "T"}
+
+    svc = make_sonos([_ConnectZone()], selected="c")
+    with pytest.raises(ServiceError) as exc:
+        svc._skip_sync(1)
+    assert exc.value.code == "sonos_transition" and "kilde: connect" in exc.value.message and "annen app" in exc.value.message

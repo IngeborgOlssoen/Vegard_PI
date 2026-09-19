@@ -296,6 +296,34 @@ class SonosService:
         self._selected_uid = zone.uid
         return self._coordinator(zone)
 
+    @staticmethod
+    def _describe(coord, info=None) -> str:
+        """Kort beskrivelse av rommet til bruk i feilmeldinger: «Cocina» (PLAYING, kilde: connect)."""
+        try:
+            transport = coord.get_current_transport_info().get("current_transport_state", "?")
+        except Exception:
+            transport = "?"
+        try:
+            info = info or coord.get_current_track_info()
+        except Exception:
+            info = {}
+        uri = info.get("uri") or ""
+        return (f"«{coord.player_name}» ({transport}, kilde: {playback_source(uri)}, "
+                f"spor {info.get('playlist_position') or '-'}, {info.get('position') or '-'}/{info.get('duration') or '-'}, "
+                f"uri: {uri[:40] or '-'})")
+
+    def _raise_transition(self, coord, exc, info=None) -> None:
+        """Sonos svarte 701 (Transition not available): forklar med fakta om rommet."""
+        desc = self._describe(coord, info)
+        src = playback_source((info or {}).get("uri")) if info else None
+        if src in ("connect", "airplay", "external"):
+            hint = "Avspillingen styres fra en annen app, så hopp og spoling må gå den veien."
+        elif src == "radio":
+            hint = "Radio kan ikke hoppes eller spoles i."
+        else:
+            hint = "Start en spilleliste fra panelet, så spiller Sonos fra sin egen kø."
+        raise ServiceError(f"Sonos {desc} avviste kommandoen (701). {hint}", code="sonos_transition")
+
     # --- lesing -----------------------------------------------------------------
 
     def _state_sync(self) -> PlayerState:
@@ -360,17 +388,46 @@ class SonosService:
             self._selected_uid = self._zone(device_id).uid
         await self._run(self._play_sync, context_uri, int(offset or 0))
 
+    def _pause_sync(self) -> None:
+        from soco.exceptions import SoCoException
+        coord = self._target_sync()
+        try:
+            coord.pause()
+        except SoCoException as exc:
+            if "701" not in str(exc):
+                raise
+            self._raise_transition(coord, exc)
+
     async def pause(self) -> None:
         await self.ensure_zones()
-        await self._run(lambda: self._target_sync().pause())
+        await self._run(self._pause_sync)
+
+    def _skip_sync(self, direction: int) -> None:
+        """Neste/forrige. Nekter Sonos (701) mens køen spiller, hopper vi via køposisjonen i stedet."""
+        from soco.exceptions import SoCoException
+        coord = self._target_sync()
+        try:
+            coord.next() if direction > 0 else coord.previous()
+            return
+        except SoCoException as exc:
+            if "701" not in str(exc):
+                raise
+            info = coord.get_current_track_info()
+            position = int(info.get("playlist_position") or 0)   # 1-basert
+            if playback_source(info.get("uri")) == "queue" and position:
+                target = max(0, position - 1 + direction)
+                log.info("Sonos: vanlig hopp avvist, hopper til køposisjon %d", target + 1)
+                coord.play_from_queue(target)
+                return
+            self._raise_transition(coord, exc, info)
 
     async def next(self) -> None:
         await self.ensure_zones()
-        await self._run(lambda: self._target_sync().next())
+        await self._run(self._skip_sync, 1)
 
     async def previous(self) -> None:
         await self.ensure_zones()
-        await self._run(lambda: self._target_sync().previous())
+        await self._run(self._skip_sync, -1)
 
     def _volume_sync(self, percent: int, device_id: Optional[str]) -> None:
         percent = max(0, min(100, percent))
@@ -414,10 +471,20 @@ class SonosService:
         await self.ensure_zones()
         await self._run(self._toggle_sync, device_id)
 
+    def _seek_sync(self, position_ms: int) -> None:
+        from soco.exceptions import SoCoException
+        coord = self._target_sync()
+        try:
+            coord.seek(format_clock(position_ms))
+        except SoCoException as exc:
+            if "701" not in str(exc):
+                raise
+            self._raise_transition(coord, exc)
+
     async def seek(self, position_ms: int) -> None:
         """Spoler i sporet som spilles (virker når Sonos styrer køen selv)."""
         await self.ensure_zones()
-        await self._run(lambda: self._target_sync().seek(format_clock(position_ms)))
+        await self._run(self._seek_sync, position_ms)
 
     async def shuffle(self, state: bool) -> None:
         await self.ensure_zones()

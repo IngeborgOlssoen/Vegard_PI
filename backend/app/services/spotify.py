@@ -381,7 +381,9 @@ class SpotifyService:
         if self._playlists and time.monotonic() - self._playlists_time < PLAYLISTS_CACHE_SECONDS:
             return self._playlists
         resp = await self._api("GET", "/me/playlists", params={"limit": min(50, self.cfg.playlist_limit)})
-        self._playlists = parse_playlists(resp.json())[: self.cfg.playlist_limit]
+        # Lister med 0 spor er som regel Spotify sine egne (Discover Weekly o.l.), som
+        # API-et ikke lenger gir tilgang til for private apper – de kan ikke spilles herfra.
+        self._playlists = [p for p in parse_playlists(resp.json()) if p.tracks > 0][: self.cfg.playlist_limit]
         self._playlists_time = time.monotonic()
         return self._playlists
 

@@ -6,6 +6,7 @@ Bruk (venv aktivert, fra repo-roten):
     python scripts/sonos_check.py                          # rom, kontoer, hva som spilles
     python scripts/sonos_check.py --play spotify:playlist:37i9dQZF1DXcBWIGoYBM5M
     python scripts/sonos_check.py --ip 10.0.0.20           # hvis søk ikke finner høyttalerne
+    python scripts/sonos_check.py --next                   # prøv «neste» i rommet som spiller, vis feilen
 """
 import sys
 import time
@@ -24,7 +25,7 @@ def _need_venv(module: str) -> None:
 
 try:
     from soco import SoCo, discover  # noqa: E402
-    from app.services.sonos import SPOTIFY_SERVICE_TYPES, enqueue_spotify, spotify_accounts  # noqa: E402
+    from app.services.sonos import SPOTIFY_SERVICE_TYPES, enqueue_spotify, playback_source, spotify_accounts  # noqa: E402
 except ImportError as exc:
     _need_venv(exc.name or "soco")
 
@@ -62,12 +63,45 @@ def main() -> None:
     if not accounts:
         print("  (fant ingen – panelet prøver standardvariantene", ", ".join(SPOTIFY_SERVICE_TYPES), ")")
 
-    for z in zones:
+    seen = set()
+    playing_coord = None
+    for z in sorted(zones, key=lambda z: z.player_name):
         coord = z.group.coordinator if z.group else z
+        if coord.uid in seen:
+            continue
+        seen.add(coord.uid)
+        state = coord.get_current_transport_info().get("current_transport_state")
         info = coord.get_current_track_info()
+        uri = info.get("uri") or ""
+        print(f"\nGruppe «{coord.player_name}»: {state}, kilde: {playback_source(uri)}, "
+              f"kø: {coord.queue_size} spor, spor nr. {info.get('playlist_position') or '-'}")
         if info.get("title"):
-            print(f"\n{coord.player_name} spiller: {info['title']} – {info.get('artist')} "
-                  f"({info.get('position')} / {info.get('duration')})\n  uri: {info.get('uri')}")
+            print(f"  {info['title']} – {info.get('artist')}  ({info.get('position')} / {info.get('duration')})")
+        print(f"  uri: {uri or '-'}")
+        if state == "PLAYING" and playing_coord is None:
+            playing_coord = coord
+
+    if "--next" in sys.argv:
+        coord = playing_coord or first
+        print(f"\nPrøver «neste» i «{coord.player_name}» …")
+        try:
+            coord.next()
+            time.sleep(1.5)
+            info = coord.get_current_track_info()
+            print(f"  OK. Spiller nå: {info.get('title')} – {info.get('artist')}")
+        except Exception as exc:
+            print(f"  Feil: {type(exc).__name__}: {exc}")
+            info = coord.get_current_track_info()
+            if info.get("playlist_position") and playback_source(info.get("uri")) == "queue":
+                pos = int(info["playlist_position"])
+                print(f"  Prøver hopp via køposisjon ({pos + 1}) …")
+                try:
+                    coord.play_from_queue(pos)
+                    time.sleep(1.5)
+                    info = coord.get_current_track_info()
+                    print(f"  OK. Spiller nå: {info.get('title')} – {info.get('artist')}")
+                except Exception as exc2:
+                    print(f"  Feil: {type(exc2).__name__}: {exc2}")
 
     uri = arg("--play")
     if uri:
