@@ -44,6 +44,12 @@ def parse_clock(value: Optional[str]) -> int:
     return int((h * 3600 + m * 60 + s) * 1000)
 
 
+def format_clock(ms: int) -> str:
+    """Millisekunder → "H:MM:SS" slik Sonos vil ha det."""
+    total = max(0, int(ms)) // 1000
+    return f"{total // 3600}:{(total % 3600) // 60:02d}:{total % 60:02d}"
+
+
 def group_name(coordinator_name: str, member_names: list[str]) -> str:
     """"Stue + Kjøkken" for en gruppe, bare "Stue" for et enkelt rom."""
     others = [n for n in member_names if n != coordinator_name]
@@ -269,6 +275,11 @@ class SonosService:
         await self.ensure_zones()
         await self._run(self._toggle_sync, device_id)
 
+    async def seek(self, position_ms: int) -> None:
+        """Spoler i sporet som spilles (virker når Sonos styrer køen selv)."""
+        await self.ensure_zones()
+        await self._run(lambda: self._target_sync().seek(format_clock(position_ms)))
+
     async def shuffle(self, state: bool) -> None:
         await self.ensure_zones()
 
@@ -403,6 +414,11 @@ class SimSonosService:
             self.groups[device_id] = coord           # bli med
         else:
             self._selected = device_id               # bytt rom
+
+    async def seek(self, position_ms: int) -> None:
+        position_ms = max(0, min(214_000, int(position_ms)))
+        self._paused_at = position_ms
+        self._started = time.monotonic() - position_ms / 1000
 
     async def shuffle(self, state: bool) -> None:
         return None

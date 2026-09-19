@@ -80,11 +80,26 @@ class MusicService:
             if self.spotify is not None and self.spotify.logged_in:
                 log.info("Sonos styrer ikke køen selv – sender «%s» via Spotify", name)
                 try:
-                    await getattr(self.spotify, name)()
+                    await self._via_spotify(name, *[a for a in args if a is not None][:1] if name == "seek" else [])
                     return
                 except ServiceError as spotify_exc:
                     raise ServiceError(f"{exc.message} (Spotify: {spotify_exc.message})", code=exc.code)
             raise
+
+    async def _via_spotify(self, name: str, *args) -> None:
+        """Kommando via Spotify. Har Spotify mistet Sonos-rommet som aktiv enhet (skjer etter
+        en pause), vekkes rommet ved navn først, og kommandoen prøves på nytt."""
+        try:
+            await getattr(self.spotify, name)(*args)
+        except ServiceError as exc:
+            if exc.code != "spotify_no_device" or self.sonos is None:
+                raise
+            state = await self.sonos.state()
+            room = state.device.name.split(" + ")[0] if state.device else None
+            if not room or not await self.spotify.activate_device_by_name(room):
+                raise ServiceError(f"{exc.message} Spotify kjenner ikke rommet «{room}» akkurat nå – start en "
+                                   f"spilleliste fra panelet i stedet.", code="spotify_no_device")
+            await getattr(self.spotify, name)(*args)
 
     async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
         if context_uri:
@@ -100,6 +115,9 @@ class MusicService:
 
     async def previous(self) -> None:
         await self._transport("previous")
+
+    async def seek(self, position_ms: int) -> None:
+        await self._transport("seek", position_ms)
 
     async def set_volume(self, percent: int, device_id: Optional[str] = None) -> None:
         await self._player().set_volume(percent, device_id)

@@ -406,6 +406,21 @@ class SpotifyService:
         await self._api("PUT", "/me/player", json=body)
         self._invalidate()
 
+    async def activate_device_by_name(self, name: str) -> bool:
+        """Gjør høyttaleren med dette navnet (f.eks. Sonos-rommet "Stue") aktiv i Spotify
+        igjen. Returnerer False hvis Spotify ikke kjenner den."""
+        wanted = name.strip().lower()
+        device = next((d for d in await self.devices(fresh=True) if d.name.strip().lower() == wanted), None)
+        if device is None:
+            return False
+        await self.transfer(device.id, play=True)
+        await asyncio.sleep(0.5)
+        return True
+
+    async def seek(self, position_ms: int) -> None:
+        await self._api("PUT", "/me/player/seek", params={"position_ms": max(0, int(position_ms))})
+        self._invalidate()
+
     async def shuffle(self, state: bool) -> None:
         await self._api("PUT", "/me/player/shuffle", params={"state": "true" if state else "false"})
         self._invalidate()
@@ -523,6 +538,18 @@ class SimSpotifyService:
             d.is_active = d.id == device_id
         if play:
             self.is_playing = True
+
+    async def activate_device_by_name(self, name: str) -> bool:
+        device = next((d for d in self.devices_list if d.name.lower() == name.strip().lower()), None)
+        if device is None:
+            return False
+        await self.transfer(device.id, play=True)
+        return True
+
+    async def seek(self, position_ms: int) -> None:
+        position_ms = max(0, min(214_000, int(position_ms)))
+        self._paused_at = position_ms
+        self._started = time.monotonic() - position_ms / 1000
 
     async def shuffle(self, state: bool) -> None:
         self.shuffle_on = state

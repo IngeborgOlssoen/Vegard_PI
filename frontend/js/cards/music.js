@@ -13,6 +13,7 @@ let data = null;             // siste svar fra /api/spotify
 let lastSync = 0;            // når progress_ms sist ble hentet (for lokal telling)
 let volumeDragging = false;
 let pendingVolume = null;
+let seekDragging = false;
 let renderedPlaylists = '';
 let roomsSheet = null;       // åpent rom-ark: { handle, body }
 
@@ -40,7 +41,7 @@ export default {
           <div class="music-cover" data-cover>${icon('music')}</div>
           <div class="music-title" data-title>Ingenting spilles</div>
           <div class="music-artist" data-artist></div>
-          <div class="music-progress"><div class="music-progress-bar" data-bar></div></div>
+          <input type="range" class="slider slider-seek" data-seek min="0" max="1000" step="1" value="0" aria-label="Spol">
           <div class="music-times"><span data-pos>0:00</span><span data-dur>0:00</span></div>
           <div class="music-controls">
             <button class="btn btn-round" data-act="previous" aria-label="Forrige">${icon('previous')}</button>
@@ -78,6 +79,20 @@ export default {
     vol.addEventListener('change', done);
     vol.addEventListener('pointerup', done);
     vol.addEventListener('pointercancel', done);
+
+    // Spole: dra i framdriftslinja, spol når fingeren slippes
+    const seek = body.querySelector('[data-seek]');
+    seek.addEventListener('pointerdown', () => { seekDragging = true; });
+    seek.addEventListener('input', () => {
+      const dur = data?.state?.track?.duration_ms || 0;
+      body.querySelector('[data-pos]').textContent = fmtTime((Number(seek.value) / 1000) * dur);
+    });
+    seek.addEventListener('change', () => {
+      seekDragging = false;
+      const dur = data?.state?.track?.duration_ms || 0;
+      if (dur) command('seek', { position_ms: Math.round((Number(seek.value) / 1000) * dur) });
+    });
+    seek.addEventListener('pointercancel', () => { seekDragging = false; });
   },
 
   async refresh() {
@@ -136,8 +151,12 @@ function renderProgress() {
   const dur = s.track?.duration_ms || 0;
   let pos = s.progress_ms || 0;
   if (s.is_playing) pos = Math.min(dur, pos + (Date.now() - lastSync));
-  root.querySelector('[data-bar]').style.width = dur ? `${(pos / dur) * 100}%` : '0%';
-  root.querySelector('[data-pos]').textContent = fmtTime(pos);
+  const seek = root.querySelector('[data-seek]');
+  seek.disabled = !dur;
+  if (!seekDragging) {
+    seek.value = dur ? Math.round((pos / dur) * 1000) : 0;
+    root.querySelector('[data-pos]').textContent = fmtTime(pos);
+  }
   root.querySelector('[data-dur]').textContent = fmtTime(dur);
 }
 

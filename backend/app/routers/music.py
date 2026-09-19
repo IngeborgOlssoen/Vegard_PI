@@ -9,6 +9,7 @@
   POST /api/music/transfer  {device_id}                  velg rom/høyttaler
   POST /api/music/rooms/{id}/toggle                      Sonos: legg til/fjern rom i gruppa
   POST /api/music/shuffle   {state}
+  POST /api/music/seek      {position_ms}                spol i sporet
 Alle POST-ene svarer med samme innhold som GET, hentet like etter kommandoen.
 """
 import asyncio
@@ -36,6 +37,10 @@ class TransferBody(BaseModel):
 
 class ShuffleBody(BaseModel):
     state: bool
+
+
+class SeekBody(BaseModel):
+    position_ms: int = Field(ge=0)
 
 
 def _svc(request: Request):
@@ -94,6 +99,12 @@ async def transfer(body: TransferBody, request: Request) -> dict:
 @router.post("/rooms/{device_id}/toggle")
 async def toggle_room(device_id: str, request: Request) -> dict:
     await _svc(request).toggle_room(device_id)
+    return await _after(request)
+
+
+@router.post("/seek")
+async def seek(body: SeekBody, request: Request) -> dict:
+    await _svc(request).seek(body.position_ms)
     return await _after(request)
 
 

@@ -6,7 +6,7 @@ from app.config import AppConfig, SonosConfig, SpotifyConfig
 from app.errors import ServiceError
 from app.main import create_app
 from app.services.music import MusicService
-from app.services.sonos import SimSonosService, group_name, parse_clock
+from app.services.sonos import SimSonosService, format_clock, group_name, parse_clock
 from app.services.spotify import SimSpotifyService
 
 
@@ -16,6 +16,7 @@ def test_parse_clock_and_group_name():
     assert parse_clock("NOT_IMPLEMENTED") == 0 and parse_clock("") == 0 and parse_clock(None) == 0
     assert group_name("Stue", ["Kjøkken", "Stue", "Bad"]) == "Stue + Bad + Kjøkken"
     assert group_name("Stue", ["Stue"]) == "Stue"
+    assert format_clock(201_000) == "0:03:21" and format_clock(3_600_500) == "1:00:00" and format_clock(-5) == "0:00:00"
 
 
 async def test_sim_sonos_rooms_groups_and_volume():
@@ -87,6 +88,9 @@ def test_music_api_with_simulated_sonos(tmp_path):
         ov = client.post("/api/music/pause").json()
         assert ov["state"]["is_playing"] is False
 
+        ov = client.post("/api/music/seek", json={"position_ms": 90_000}).json()
+        assert 89_000 <= ov["state"]["progress_ms"] <= 91_000
+
         assert client.post("/api/music/volume", json={"percent": 150}).status_code == 422
         r = client.post("/api/music/rooms/finnes-ikke/toggle")
         assert r.status_code == 404 and "Fant ikke" in r.json()["error"]["message"]
@@ -144,3 +148,58 @@ async def test_next_falls_back_to_spotify_when_sonos_cannot_control_queue():
     with pytest.raises(ServiceError) as exc:  # uten Spotify: Sonos sin melding
         await MusicService(sonos=_SonosInConnectMode(), spotify=None).next()
     assert exc.value.code == "sonos_transition"
+
+
+class _SonosExternal:
+    """Sonos i Connect-modus: alt som rører køen gir 701. Rommet heter Stue."""
+    async def next(self):
+        raise ServiceError("UPnP Error 701", code="sonos_transition")
+
+    async def seek(self, ms):
+        raise ServiceError("UPnP Error 701", code="sonos_transition")
+
+    async def state(self):
+        from app.services.spotify import Device, PlayerState
+        return PlayerState(active=True, device=Device(id="x", name="Stue + Kjøkken"), external=True)
+
+
+class _SpotifyForgotDevice:
+    """Spotify som har mistet den aktive enheten til den vekkes ved navn."""
+    logged_in = True
+
+    def __init__(self, known_rooms):
+        self.known = known_rooms
+        self.active = False
+        self.calls = []
+
+    async def activate_device_by_name(self, name):
+        self.calls.append(("activate", name))
+        if name in self.known:
+            self.active = True
+        return self.active
+
+    async def next(self):
+        if not self.active:
+            raise ServiceError("Ingen aktiv høyttaler. Velg en høyttaler først.", code="spotify_no_device")
+        self.calls.append(("next",))
+
+    async def seek(self, ms):
+        if not self.active:
+            raise ServiceError("Ingen aktiv høyttaler.", code="spotify_no_device")
+        self.calls.append(("seek", ms))
+
+
+async def test_wakes_room_in_spotify_before_retrying():
+    spotify = _SpotifyForgotDevice(known_rooms=["Stue"])
+    music = MusicService(sonos=_SonosExternal(), spotify=spotify)
+    await music.next()
+    assert spotify.calls == [("activate", "Stue"), ("next",)]
+    await music.seek(5000)
+    assert spotify.calls[-1] == ("seek", 5000)
+
+
+async def test_clear_message_when_spotify_does_not_know_the_room():
+    music = MusicService(sonos=_SonosExternal(), spotify=_SpotifyForgotDevice(known_rooms=[]))
+    with pytest.raises(ServiceError) as exc:
+        await music.next()
+    assert "kjenner ikke rommet «Stue»" in exc.value.message

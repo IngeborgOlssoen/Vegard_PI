@@ -366,9 +366,10 @@
 .music-cover svg { width: 40%; height: 40%; }
 .music-title { font-size: 1.5rem; font-weight: 800; line-height: 1.15; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .music-artist { color: var(--muted); font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.music-progress { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
-.music-progress-bar { height: 100%; background: var(--accent); width: 0; transition: width .5s linear; }
-.music-times { display: flex; justify-content: space-between; color: var(--muted); font-size: .85rem; margin-top: -4px; }
+.slider-seek { height: 10px; border-radius: 5px; background: var(--surface-3); margin: 8px 0 2px; }
+.slider-seek::-webkit-slider-thumb { width: 30px; height: 30px; border-width: 3px; }
+.slider-seek:disabled { opacity: .4; }
+.music-times { display: flex; justify-content: space-between; color: var(--muted); font-size: .85rem; }
 .music-controls { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 6px; }
 .btn-round { width: 72px; height: 72px; min-height: 0; padding: 0; border-radius: 50%; }
 .btn-round svg { width: 30px; height: 30px; }
