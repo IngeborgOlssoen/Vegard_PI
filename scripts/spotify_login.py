@@ -34,8 +34,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.config import load_config  # noqa: E402  (bruker samme config-lasting som backend)
-from app.services.spotify import SCOPES, SPOTIFY_AUTHORIZE_URL, SPOTIFY_TOKEN_URL  # noqa: E402
+
+def _need_venv(module: str) -> None:
+    """Skriptene trenger pakkene i .venv – si fra på en forståelig måte hvis den ikke er aktivert."""
+    print(f"Fant ikke pakken «{module}». Aktiver først det virtuelle miljøet, så prøv igjen:\n")
+    print("    source .venv/bin/activate        (Windows: .venv\\Scripts\\activate)")
+    print(f"    python {sys.argv[0]}\n")
+    print("Mangler .venv? Se «Kom i gang på PC» i README.")
+    sys.exit(1)
+
+try:
+    from app.config import load_config  # noqa: E402  (bruker samme config-lasting som backend)
+    from app.services.spotify import SCOPES, SPOTIFY_AUTHORIZE_URL, SPOTIFY_TOKEN_URL  # noqa: E402
+except ImportError as exc:
+    _need_venv(exc.name or "yaml")
 
 
 def main() -> None:

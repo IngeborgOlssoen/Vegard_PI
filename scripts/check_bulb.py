@@ -13,8 +13,20 @@ Svarer pæra, får du en ferdig config-blokk å lime inn.
 import asyncio
 import sys
 
-from pywizlight import wizlight
-from pywizlight.exceptions import WizLightConnectionError, WizLightTimeOutError
+def _need_venv(module: str) -> None:
+    """Skriptene trenger pakkene i .venv – si fra på en forståelig måte hvis den ikke er aktivert."""
+    print(f"Fant ikke pakken «{module}». Aktiver først det virtuelle miljøet, så prøv igjen:\n")
+    print("    source .venv/bin/activate        (Windows: .venv\\Scripts\\activate)")
+    print(f"    python {sys.argv[0]}\n")
+    print("Mangler .venv? Se «Kom i gang på PC» i README.")
+    sys.exit(1)
+
+
+try:
+    from pywizlight import wizlight
+    from pywizlight.exceptions import WizLightConnectionError, WizLightTimeOutError
+except ImportError as exc:
+    _need_venv(exc.name or "pywizlight")
 
 
 async def main() -> None:
