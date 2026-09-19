@@ -137,20 +137,19 @@ Ikoner: `moon`, `film`, `off`, `sun`, `star`, `coffee`, `book`, `party`.
 Holdeplassene ligger under `bus.stops`. Hver har en Entur-id som
 `NSR:StopPlace:58366`, et valgfritt `name` (ellers brukes navnet fra Entur) og
 et valgfritt `line_filter`, f.eks. `["31", "37"]`. Finn id-ene med
-`python scripts/find_stop.py "Holdeplassnavn"`. En `NSR:Quay:`-id gir bare én
-retning/plattform (`--quays` viser dem).
+`python scripts/find_stop.py "Holdeplassnavn"`.
 
 ```yaml
 bus:
   stops:
-    - stop_place_id: NSR:StopPlace:xxxxx
+    - stop_place_id: NSR:StopPlace:6451
       name: Dælenenga
-    - stop_place_id: NSR:StopPlace:yyyyy
-      name: Kjøbenhavngata
+    - stop_place_id: NSR:StopPlace:6453
+      name: Københavngata
 ```
 
 Kortet `bus` viser alle holdeplassene under hverandre. Vil du ha ett kort per
-holdeplass, bruk `bus1`, `bus2` osv. i layouten (nummeret er plassen i lista):
+holdeplass, bruk `bus1`, `bus2` … `bus8` i layouten (nummeret er plassen i lista):
 
 ```yaml
 dashboard:
@@ -159,6 +158,34 @@ dashboard:
     - "lights lights bus2"
     - "lights lights weather"
 ```
+
+**Dele opp i retning.** En holdeplass har én plattform per retning. Bruk
+plattform-id-en (`NSR:Quay:…`) i stedet for holdeplass-id-en, én oppføring per
+retning. `--quays` viser plattformene og hvor bussene fra hver av dem går:
+
+```
+$ python scripts/find_stop.py "Dælenenga" --quays
+  NSR:StopPlace:6451   Dælenenga (Oslo, Oslo) [onstreetBus]
+      NSR:Quay:11342   plattform A  →  31 Snarøya, 37 Nydalen
+      NSR:Quay:11343   plattform B  →  31 Grorud, 37 Helsfyr
+```
+
+```yaml
+bus:
+  stops:
+    - { stop_place_id: NSR:Quay:11342, name: "Dælenenga → sentrum" }
+    - { stop_place_id: NSR:Quay:11343, name: "Dælenenga → Grorud" }
+    - { stop_place_id: NSR:Quay:11350, name: "Kbh.gata → sentrum" }
+    - { stop_place_id: NSR:Quay:11351, name: "Kbh.gata → Grorud" }
+dashboard:
+  layout:
+    - "lights lights bus1 bus2"
+    - "lights lights bus3 bus4"
+    - "lights lights weather weather"
+```
+
+Korte navn passer best når kortene er smale. Kortene tilpasser seg plassen:
+smale busskort bruker mindre tekst, og et lavt værkort dropper dagsvarselet.
 
 ### Vær
 

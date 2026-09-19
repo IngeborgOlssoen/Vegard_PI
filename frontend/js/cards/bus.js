@@ -29,6 +29,8 @@ export function createBusCard(id, stopIndex = null) {
 
     list.innerHTML = stops.map((stop) => {
       const departures = (stop.departures || []).filter((d) => new Date(d.expected).getTime() > now - 30000);
+      // Én plattform (NSR:Quay:...) = alle avganger har samme plattform, så bokstaven er overflødig
+      const showPlatform = !String(stop.stop_id || '').startsWith('NSR:Quay:');
       let body;
       if (stop.error) {
         body = `<div class="dep-error">${escapeHtml(stop.error)}</div>`;
@@ -40,7 +42,7 @@ export function createBusCard(id, stopIndex = null) {
           return `
             <div class="dep-row ${d.cancelled ? 'is-cancelled' : ''}">
               <span class="dep-line mode-${escapeHtml(d.mode)}">${escapeHtml(d.line)}</span>
-              <span class="dep-dest">${escapeHtml(d.destination)}${d.platform ? `<span class="dep-platform">${escapeHtml(d.platform)}</span>` : ''}</span>
+              <span class="dep-dest">${escapeHtml(d.destination)}${showPlatform && d.platform ? `<span class="dep-platform">${escapeHtml(d.platform)}</span>` : ''}</span>
               <span class="dep-time ${cls}">${label}</span>
             </div>`;
         }).join('');

@@ -9,8 +9,8 @@ import clock from './clock.js';
 
 registerCard(lights);
 registerCard(bus);                          // "bus": alle holdeplassene i ett kort
-registerCard(createBusCard('bus1', 0));     // "bus1": bare første holdeplass i bus.stops
-registerCard(createBusCard('bus2', 1));     // "bus2": andre holdeplass
-registerCard(createBusCard('bus3', 2));     // "bus3": tredje holdeplass
+for (let i = 1; i <= 8; i++) {
+  registerCard(createBusCard(`bus${i}`, i - 1));   // "bus1".."bus8": én holdeplass/retning per kort
+}
 registerCard(weather);
 registerCard(clock);

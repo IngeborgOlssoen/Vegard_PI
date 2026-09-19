@@ -3,9 +3,12 @@
 
 Bruk:
     python scripts/find_stop.py "Jernbanetorget"
-    python scripts/find_stop.py "Majorstuen" --quays     # vis også plattformer
+    python scripts/find_stop.py "Majorstuen" --quays     # vis også plattformer og hvor bussene går
 
 Legg id-en (NSR:StopPlace:xxxxx) inn under bus.stops i config.yaml.
+Vil du dele opp i retning, bruk plattform-id-en (NSR:Quay:xxxxx) i stedet –
+én oppføring per retning. Med --quays ser du hvilke linjer og destinasjoner
+som går fra hver plattform.
 """
 import json
 import sys
@@ -46,11 +49,24 @@ def main() -> None:
         kinds = ", ".join(p.get("category") or [])
         print(f"  {p['id']:<24} {p['name']} ({where}) [{kinds}]")
         if show_quays:
-            q = {"query": "query($id:String!){stopPlace(id:$id){quays{id publicCode description}}}",
+            q = {"query": """query($id:String!){ stopPlace(id:$id){ quays{ id publicCode description
+                     estimatedCalls(numberOfDepartures: 12, timeRange: 21600){
+                       destinationDisplay{frontText} serviceJourney{line{publicCode}} } } } }""",
                  "variables": {"id": p["id"]}}
             place = (http_json(GRAPHQL, q).get("data") or {}).get("stopPlace") or {}
             for quay in place.get("quays") or []:
-                print(f"      {quay['id']:<20} plattform {quay.get('publicCode') or '?'} {quay.get('description') or ''}")
+                # Samle "31 Snarøya, 37 Nydalen" fra de neste avgangene, uten gjentakelser
+                seen = []
+                for call in quay.get("estimatedCalls") or []:
+                    line = ((call.get("serviceJourney") or {}).get("line") or {}).get("publicCode") or "?"
+                    dest = (call.get("destinationDisplay") or {}).get("frontText") or ""
+                    label = f"{line} {dest}".strip()
+                    if label not in seen:
+                        seen.append(label)
+                going = ", ".join(seen[:4]) if seen else "ingen avganger de neste 6 timene"
+                code = quay.get("publicCode") or "?"
+                desc = f" ({quay['description']})" if quay.get("description") else ""
+                print(f"      {quay['id']:<20} plattform {code}{desc}  →  {going}")
 
     print("\nLegg id-en inn under bus.stops i config/config.yaml (se README for eksempel).")
 
