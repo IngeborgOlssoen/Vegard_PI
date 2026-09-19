@@ -109,6 +109,15 @@ Skriptet skriver ut en ferdig `bulbs:`-blokk du kan lime inn i `config.yaml`.
 Gi gjerne pærene fast IP i ruteren (DHCP-reservasjon). Har du fylt inn `mac`,
 finner appen pæra igjen selv om IP-en endrer seg.
 
+Finner ikke søket en pære som står bak en nettverksextender eller mesh-node?
+Søket bruker broadcast, som slike bokser ofte stopper, mens selve styringen
+går direkte til IP-en og virker likevel. Finn IP-en i WiZ-appen (pæra →
+innstillinger → enhetsinformasjon) og sjekk den med
+`python scripts/check_bulb.py 10.0.0.42`. Svarer pæra, får du config-blokken
+rett fra skriptet. Får pæra en adresse i et annet nett enn resten (f.eks.
+192.168.x.x når alt annet er 10.0.0.x), står extenderen i ruter-modus og må
+settes i bro-/AP-modus.
+
 ### Scener
 
 Scenene ligger i `config/scenes.json` (lages fra `scenes.example.json` første
