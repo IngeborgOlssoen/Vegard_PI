@@ -254,6 +254,12 @@ dine vises som store knapper. Krever Spotify Premium.
 `spotify.default_device` er rommet som brukes når ingenting spiller ennå.
 Vil du se siden på PC uten Spotify, sett `spotify.simulate: true`.
 
+**Finner ikke panelet Sonos-høyttalerne?** Panelet viser bare enhetene Spotify
+selv kjenner til. `python scripts/spotify_status.py` viser nøyaktig hva Spotify
+svarer. Er lista tom: legg Spotify til i Sonos-appen (Innstillinger → Tjenester
+og stemme) med samme konto som du logget inn med, sjekk at rommene vises under
+«Koble til en enhet» i Spotify-appen, og spill noe på et rom derfra én gang.
+
 ## Oppsett på Raspberry Pi 5
 
 Forutsetter Raspberry Pi OS (Bookworm eller nyere) *med skrivebord*, og at
