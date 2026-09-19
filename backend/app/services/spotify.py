@@ -173,7 +173,8 @@ def parse_playlists(data: dict) -> list[Playlist]:
             id=item.get("id") or "", name=item.get("name") or "Uten navn", uri=item.get("uri") or "",
             image=_best_image(item.get("images") or [], 300),
             owner=(item.get("owner") or {}).get("display_name") or "",
-            tracks=int((item.get("tracks") or {}).get("total") or 0),
+            # Antall spor: Spotify har kalt feltet både "tracks" og "items"; 0 = ukjent
+            tracks=int(((item.get("tracks") or item.get("items") or {}).get("total")) or 0),
         ))
     return out
 
@@ -381,9 +382,8 @@ class SpotifyService:
         if self._playlists and time.monotonic() - self._playlists_time < PLAYLISTS_CACHE_SECONDS:
             return self._playlists
         resp = await self._api("GET", "/me/playlists", params={"limit": min(50, self.cfg.playlist_limit)})
-        # Lister med 0 spor er som regel Spotify sine egne (Discover Weekly o.l.), som
-        # API-et ikke lenger gir tilgang til for private apper – de kan ikke spilles herfra.
-        self._playlists = [p for p in parse_playlists(resp.json()) if p.tracks > 0][: self.cfg.playlist_limit]
+        # Ikke filtrer på antall spor: Spotify oppgir ikke alltid antallet (da står det 0).
+        self._playlists = parse_playlists(resp.json())[: self.cfg.playlist_limit]
         self._playlists_time = time.monotonic()
         return self._playlists
 

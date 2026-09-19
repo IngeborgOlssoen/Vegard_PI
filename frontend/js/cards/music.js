@@ -186,7 +186,7 @@ function renderPlaylists() {
           ${p.image ? `<img src="${escapeHtml(p.image)}" alt="" loading="lazy">` : `<span class="playlist-initial">${escapeHtml(p.name.slice(0, 1))}</span>`}
         </span>
         <span class="playlist-name">${escapeHtml(p.name)}</span>
-        <span class="playlist-meta">${p.tracks} spor</span>
+        <span class="playlist-meta">${p.tracks > 0 ? `${p.tracks} spor` : (p.owner ? `av ${escapeHtml(p.owner)}` : '')}</span>
       </button>`).join('')
       : '<div class="muted">Ingen spillelister funnet på Spotify-kontoen.</div>';
     grid.querySelectorAll('.playlist').forEach((b) =>
@@ -212,7 +212,7 @@ function openPlaylistSheet(uri) {
         <span class="pl-cover">${playlist.image ? `<img src="${escapeHtml(playlist.image)}" alt="">`
           : `<span class="playlist-initial">${escapeHtml(playlist.name.slice(0, 1))}</span>`}</span>
         <div class="pl-info">
-          <div class="pl-meta muted" data-meta>${playlist.owner ? `av ${escapeHtml(playlist.owner)} · ` : ''}${playlist.tracks} sanger</div>
+          <div class="pl-meta muted" data-meta>${playlist.owner ? `av ${escapeHtml(playlist.owner)}` : ''}${playlist.tracks > 0 ? ` · ${playlist.tracks} sanger` : ''}</div>
           <div class="pl-actions">
             <button class="btn is-active" data-act="play-all">${icon('play')}<span>Spill</span></button>
             <button class="btn" data-act="shuffle-all">${icon('shuffle')}<span>Tilfeldig</span></button>

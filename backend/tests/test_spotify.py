@@ -22,6 +22,8 @@ PLAYLISTS = {"items": [
      "owner": {"display_name": "Ingeborg"}, "tracks": {"total": 12}},
     None,
     {"id": "p2", "name": "Fest", "uri": "spotify:playlist:p2", "images": [], "owner": {}, "tracks": {"total": 3}},
+    {"id": "p3", "name": "Uten antall", "uri": "spotify:playlist:p3", "images": [], "owner": {}},
+    {"id": "p4", "name": "Nytt feltnavn", "uri": "spotify:playlist:p4", "images": [], "owner": {}, "items": {"total": 9}},
 ]}
 
 
@@ -32,7 +34,9 @@ def test_parse_player_and_playlists():
     assert s.context_uri == "spotify:playlist:abc"
     assert parse_player({}).active is False
     pls = parse_playlists(PLAYLISTS)
-    assert [p.name for p in pls] == ["Kveld", "Fest"] and pls[0].image == "img1" and pls[1].image is None
+    assert [p.name for p in pls] == ["Kveld", "Fest", "Uten antall", "Nytt feltnavn"]
+    assert pls[0].image == "img1" and pls[1].image is None
+    assert [p.tracks for p in pls] == [12, 3, 0, 9]   # 0 = ukjent, lista skal likevel vises
 
 
 def make_service(handler, tmp_path, tokens=None, **cfg):
@@ -68,7 +72,7 @@ async def test_refreshes_token_and_fetches_overview(tmp_path):
     svc = make_service(handler, tmp_path)
     ov = await svc.overview()
     assert ov.ready and ov.state.track.title == "Lyse netter"
-    assert [d.name for d in ov.devices] == ["Stue", "Kjøkken"] and len(ov.playlists) == 2
+    assert [d.name for d in ov.devices] == ["Stue", "Kjøkken"] and len(ov.playlists) == 4
     # tokenet ble fornyet én gang, brukt med "Bearer new", og ny refresh token lagret
     assert seen[0][1].endswith("/api/token") and all(a == "Bearer new" for _, _, a in seen[1:])
     assert json.loads((tmp_path / "token.json").read_text())["refresh_token"] == "rt2"
