@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -46,10 +46,10 @@ class LightCommand(BaseModel):
     - colortemp: kelvin, typisk 2200 (varmt) – 6500 (kaldt)
     - rgb: [r, g, b] 0–255. Har forrang over colortemp hvis begge er satt.
     """
-    on: bool | None = None
-    brightness: int | None = Field(default=None, ge=0, le=100)
-    colortemp: int | None = Field(default=None, ge=1000, le=10000)
-    rgb: list[int] | None = None
+    on: Optional[bool] = None
+    brightness: Optional[int] = Field(default=None, ge=0, le=100)
+    colortemp: Optional[int] = Field(default=None, ge=1000, le=10000)
+    rgb: Optional[list[int]] = None
 
     @field_validator("rgb")
     @classmethod
@@ -78,11 +78,11 @@ class BulbState(BaseModel):
     on: bool = False
     brightness: int = 0          # 0–100
     mode: str = "white"          # "white" (fargetemperatur), "color" (rgb) eller "scene" (WiZ-innebygd)
-    colortemp: int | None = None
-    rgb: list[int] | None = None
-    scene_name: str | None = None
+    colortemp: Optional[int] = None
+    rgb: Optional[list[int]] = None
+    scene_name: Optional[str] = None
     features: BulbFeatures = Field(default_factory=BulbFeatures)
-    error: str | None = None     # norsk feilmelding hvis reachable = false
+    error: Optional[str] = None     # norsk feilmelding hvis reachable = false
     updated_at: float = 0.0      # unix-tid for siste vellykkede/mislykkede spørring
 
 
@@ -170,7 +170,7 @@ class WizBulb(BulbDriver):
             self._light = wizlight(self.cfg.ip, mac=self.cfg.mac)
         return self._light
 
-    async def _call(self, coro, timeout: float | None = None):
+    async def _call(self, coro, timeout: Optional[float] = None):
         """Kjører et pywizlight-kall med tidsavbrudd og oversetter feil til ServiceError."""
         from pywizlight.exceptions import WizLightConnectionError, WizLightTimeOutError
 
@@ -282,7 +282,7 @@ class LightService:
             self.bulbs[b.id] = SimBulb(b) if cfg.simulate else WizBulb(b, cfg.timeout_seconds)
         self._locks = {bid: asyncio.Lock() for bid in self.bulbs}
         self._failures: dict[str, int] = {bid: 0 for bid in self.bulbs}
-        self._task: asyncio.Task | None = None
+        self._task: Optional[asyncio.Task] = None
         self._last_discovery = 0.0
         if cfg.simulate:
             log.info("Lys: simuleringsmodus med %d falske pærer", len(self.bulbs))
@@ -455,5 +455,5 @@ class LightService:
                 await bulb.set_ip(by_mac[mac])
 
 
-def _norm_mac(mac: str | None) -> str:
+def _norm_mac(mac: Optional[str]) -> str:
     return (mac or "").lower().replace(":", "").replace("-", "").strip()

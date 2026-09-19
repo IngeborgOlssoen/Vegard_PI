@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -40,8 +40,8 @@ class DashboardConfig(BaseModel):
 class BulbConfig(BaseModel):
     id: str  # kort id uten mellomrom, brukes i URL-er og scener
     name: str  # navnet som vises på skjermen
-    ip: str | None = None
-    mac: str | None = None  # brukes til å finne pæra igjen hvis IP-en endrer seg
+    ip: Optional[str] = None
+    mac: Optional[str] = None  # brukes til å finne pæra igjen hvis IP-en endrer seg
 
 
 class LightsConfig(BaseModel):
@@ -53,16 +53,35 @@ class LightsConfig(BaseModel):
     bulbs: list[BulbConfig] = Field(default_factory=list)
 
 
+class BusStopConfig(BaseModel):
+    stop_place_id: str  # NSR:StopPlace:xxxxx (eller NSR:Quay:xxxxx for én plattform)
+    name: Optional[str] = None  # overstyr navnet som vises (ellers navnet fra Entur)
+    line_filter: list[str] = Field(default_factory=list)  # tom = alle linjer
+
+
 class BusConfig(BaseModel):
     enabled: bool = True
-    stop_place_id: str = "NSR:StopPlace:58366"  # Jernbanetorget – bytt til din
-    stop_name: str | None = None  # overstyr navnet som vises (ellers fra Entur)
+    # Én eller flere holdeplasser. Finn id med scripts/find_stop.py.
+    stops: list[BusStopConfig] = Field(default_factory=list)
     client_name: str = "privat-hjemmepanel"  # Entur krever en identifikator
     number_of_departures: int = 10
     time_range_seconds: int = 2 * 60 * 60  # hvor langt fram vi henter avganger
     refresh_seconds: int = 30
-    line_filter: list[str] = Field(default_factory=list)  # tom = alle linjer
     timeout_seconds: float = 8.0
+    # Gammel, enkel form med bare én holdeplass. Fungerer fortsatt.
+    stop_place_id: Optional[str] = None
+    stop_name: Optional[str] = None
+    line_filter: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _collect_stops(self):
+        if not self.stops and self.stop_place_id:
+            self.stops = [BusStopConfig(stop_place_id=self.stop_place_id, name=self.stop_name,
+                                        line_filter=self.line_filter)]
+        if not self.stops:
+            # Ingenting satt: vis Jernbanetorget så appen starter uansett
+            self.stops = [BusStopConfig(stop_place_id="NSR:StopPlace:58366")]
+        return self
 
 
 class WeatherConfig(BaseModel):
@@ -81,8 +100,8 @@ class WeatherConfig(BaseModel):
 class ButtonConfig(BaseModel):
     gpio: int  # BCM-nummer (f.eks. 17 = fysisk pinne 11)
     action: Literal["scene", "toggle_all", "all_on", "all_off", "toggle_bulb"]
-    scene: str | None = None  # scene-id når action = scene
-    bulb: str | None = None  # pære-id når action = toggle_bulb
+    scene: Optional[str] = None  # scene-id når action = scene
+    bulb: Optional[str] = None  # pære-id når action = toggle_bulb
 
     @model_validator(mode="after")
     def _check_target(self):
@@ -126,7 +145,7 @@ def config_path() -> Path:
     return CONFIG_DIR / "config.example.yaml"
 
 
-def load_config(path: Path | None = None) -> AppConfig:
+def load_config(path: Optional[Path] = None) -> AppConfig:
     path = path or config_path()
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}

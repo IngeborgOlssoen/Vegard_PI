@@ -19,6 +19,7 @@
   flex-direction: column;
   min-height: 0;         /* lar innholdet rulle i stedet for å sprenge rutenettet */
   overflow: hidden;
+  container-type: size;  /* lar innholdet tilpasse seg kortets størrelse (@container under) */
 }
 .card-header {
   display: flex;
@@ -162,8 +163,19 @@
    Buss (cards/bus.js)
    ====================================================================== */
 .bus { height: 100%; }
+/* Flere holdeplasser i samme kort: del høyden likt, hver del viser så mange rader som får plass */
+.dep-list.is-multi { height: 100%; gap: 12px; }
+.dep-list.is-multi .dep-stop { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.dep-stop-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 4px 0 6px;
+  border-bottom: 2px solid var(--border);
+}
+.dep-empty { color: var(--muted); padding: 12px 0; }
+.dep-error { color: #ffb3b3; padding: 10px 0; font-size: .95rem; }
 /* Ton ut nederst så det synes at lista fortsetter (kortet kan rulles) */
-[data-card="bus"] .card-body { mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent); }
+[data-card^="bus"] .card-body { mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent); }
 .dep-list { display: flex; flex-direction: column; }
 .dep-row {
   display: grid;
@@ -204,6 +216,14 @@
 .dep-time.is-now { color: var(--accent); }
 .dep-time.is-scheduled { color: var(--muted); font-weight: 500; font-size: 1.1rem; }
 .dep-row.is-cancelled .dep-dest, .dep-row.is-cancelled .dep-time { text-decoration: line-through; color: var(--danger); }
+/* Smalt busskort (f.eks. fire kolonner): litt mindre tekst og ingen statuslinje */
+@container (max-width: 360px) {
+  .card-status { display: none; }
+  .dep-row { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px; min-height: 50px; }
+  .dep-line { min-width: 46px; height: 36px; font-size: 1rem; }
+  .dep-dest { font-size: .95rem; }
+  .dep-time { font-size: 1.1rem; }
+}
 
 /* ======================================================================
    Vær (cards/weather.js)
@@ -255,6 +275,9 @@
 .wd-label { font-weight: 600; white-space: nowrap; }
 .wd-temp { font-weight: 700; white-space: nowrap; }
 .wd-precip { color: var(--info); text-align: right; white-space: nowrap; min-width: 56px; }
+/* Lavt værkort: dropp dagsvarselet, og ved enda mindre plass også timene */
+@container (max-height: 330px) { .weather-days { display: none; } }
+@container (max-height: 200px) { .weather-hours { display: none; } }
 
 /* ======================================================================
    Klokke (cards/clock.js)

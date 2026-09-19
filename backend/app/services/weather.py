@@ -19,6 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
+from typing import Optional
 
 import httpx
 from pydantic import BaseModel
@@ -60,7 +61,7 @@ SYMBOL_TEXT = {
 }
 
 
-def describe_symbol(code: str | None) -> tuple[str, str]:
+def describe_symbol(code: Optional[str]) -> tuple[str, str]:
     """MET-symbolkode → (ikon-navn i frontend, norsk tekst)."""
     if not code:
         return "cloud", ""
@@ -88,14 +89,14 @@ def describe_symbol(code: str | None) -> tuple[str, str]:
     return icon, text
 
 
-def wind_direction_text(degrees: float | None) -> str:
+def wind_direction_text(degrees: Optional[float]) -> str:
     if degrees is None:
         return ""
     names = ["N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV"]
     return names[int((degrees + 22.5) // 45) % 8]
 
 
-def wind_text(speed: float | None) -> str:
+def wind_text(speed: Optional[float]) -> str:
     """Beaufort-skalaen med norske navn."""
     if speed is None:
         return ""
@@ -118,11 +119,11 @@ class WeatherNow(BaseModel):
     icon: str
     symbol_text: str
     wind: float                  # m/s
-    wind_dir: float | None = None
+    wind_dir: Optional[float] = None
     wind_dir_text: str = ""
     wind_text: str = ""
-    precip_1h: float | None = None   # mm neste time
-    humidity: float | None = None
+    precip_1h: Optional[float] = None   # mm neste time
+    humidity: Optional[float] = None
 
 
 class WeatherHour(BaseModel):
@@ -130,8 +131,8 @@ class WeatherHour(BaseModel):
     temp: float
     icon: str
     symbol_text: str
-    precip: float | None = None
-    wind: float | None = None
+    precip: Optional[float] = None
+    wind: Optional[float] = None
 
 
 class WeatherDay(BaseModel):
@@ -151,7 +152,7 @@ class WeatherData(BaseModel):
     now: WeatherNow
     hours: list[WeatherHour]
     days: list[WeatherDay]
-    warning: str | None = None   # satt hvis vi viser gammelt varsel fordi ny henting feilet
+    warning: Optional[str] = None   # satt hvis vi viser gammelt varsel fordi ny henting feilet
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +228,7 @@ def parse_forecast(payload: dict, cfg: WeatherConfig, now: datetime) -> WeatherD
     )
 
 
-def _summarize_day(entries, date) -> dict | None:
+def _summarize_day(entries, date) -> Optional[dict]:
     """Maks/min-temperatur, nedbør og symbol for én lokal dato."""
     local = [(t.astimezone(OSLO), d) for t, d in entries]
     on_day = [(t, d) for t, d in local if t.date() == date]
@@ -289,11 +290,11 @@ class WeatherService:
         self.cfg = cfg
         self.http = http
         self._now = now or (lambda: datetime.now(timezone.utc))
-        self._cache: WeatherData | None = None
-        self._raw: dict | None = None        # siste rå-svar, så vi kan regne ut "nå" på nytt uten å hente
+        self._cache: Optional[WeatherData] = None
+        self._raw: Optional[dict] = None        # siste rå-svar, så vi kan regne ut "nå" på nytt uten å hente
         self._fetched_at = 0.0               # monotonic
-        self._expires: datetime | None = None
-        self._last_modified: str | None = None
+        self._expires: Optional[datetime] = None
+        self._last_modified: Optional[str] = None
         self._lock = asyncio.Lock()
         if "example.com" in cfg.user_agent or "bytt-meg" in cfg.user_agent:
             log.warning("weather.user_agent i config.yaml er ikke endret – MET kan avvise kallene. "
@@ -364,7 +365,7 @@ class WeatherService:
         self._last_modified = resp.headers.get("Last-Modified")
 
 
-def _parse_http_date(value: str | None) -> datetime | None:
+def _parse_http_date(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
     try:

@@ -11,13 +11,14 @@ import json
 import sys
 import urllib.parse
 import urllib.request
+from typing import Optional
 
 GEOCODER = "https://api.entur.io/geocoder/v1/autocomplete"
 GRAPHQL = "https://api.entur.io/journey-planner/v3/graphql"
 CLIENT = "privat-hjemmepanel-oppsett"
 
 
-def http_json(url: str, data: dict | None = None) -> dict:
+def http_json(url: str, data: Optional[dict] = None) -> dict:
     req = urllib.request.Request(url, headers={"ET-Client-Name": CLIENT, "Content-Type": "application/json"})
     body = json.dumps(data).encode() if data else None
     with urllib.request.urlopen(req, data=body, timeout=15) as resp:

@@ -9,7 +9,7 @@ på en vanlig PC først.
 
 | Del | Valg | Hvorfor |
 |---|---|---|
-| Backend | Python 3.11+ og FastAPI | Python er «hjemme» på Pi-en (GPIO, systemd), og `pywizlight` styrer WiZ-pærer lokalt over UDP uten sky. FastAPI gir et lite, asynkront API som ikke låser seg når en pære eller tjeneste henger. |
+| Backend | Python 3.9+ og FastAPI | Python er «hjemme» på Pi-en (GPIO, systemd), og `pywizlight` styrer WiZ-pærer lokalt over UDP uten sky. FastAPI gir et lite, asynkront API som ikke låser seg når en pære eller tjeneste henger. |
 | Frontend | Ren HTML/CSS/JS (ES-moduler), ingen byggesteg | Ingenting å installere eller kompilere, lett å endre på Pi-en med en teksteditor. Hvert «kort» er én JS-fil med en fast kontrakt. |
 | Visning | Chromium i kioskmodus | Fullskjerm, god berøringsstøtte, starter automatisk ved oppstart og startes på nytt hvis den dør. |
 | Drift | systemd for backend + autostart for kiosk | Backend starter ved boot og restartes automatisk ved feil. |
@@ -61,7 +61,7 @@ aktuelle kortet, mens de andre kortene fortsetter som før.
 
 ## Kom i gang på PC
 
-Krav: Python 3.11 eller nyere.
+Krav: Python 3.9 eller nyere (Pi-en har 3.11 eller nyere, Mac-er har ofte 3.9).
 
 ```bash
 git clone <dette repoet> hjemmepanel
@@ -89,8 +89,8 @@ og du kan teste dem uavhengig ved å endre `dashboard.layout` i `config.yaml`:
 
 1. **Lys** – `layout: ["lights"]`. Med `simulate: true` ser du fire falske pærer.
    Sett `simulate: false` og fyll inn IP-adresser for å styre ekte pærer.
-2. **Buss** – `layout: ["bus"]`. Sett `bus.stop_place_id` til din holdeplass
-   (`python scripts/find_stop.py "Navn"`).
+2. **Buss** – `layout: ["bus"]`. Sett holdeplassene under `bus.stops`
+   (`python scripts/find_stop.py "Navn"` finner id-ene).
 3. **Vær** – `layout: ["weather"]`. Sett `weather.lat/lon` og `user_agent`
    (`python scripts/find_place.py "Sted"`).
 4. **Samlet** – standardlayouten viser alt sammen, og `clock` kan legges til.
@@ -134,10 +134,31 @@ Ikoner: `moon`, `film`, `off`, `sun`, `star`, `coffee`, `book`, `party`.
 
 ### Buss
 
-`bus.stop_place_id` skal være en Entur-id som `NSR:StopPlace:58366`. Finn den med
-`python scripts/find_stop.py "Holdeplassnavn"`. Du kan også bruke en
-`NSR:Quay:`-id hvis du bare vil se én retning/plattform. `line_filter` begrenser
-til bestemte linjer, f.eks. `["31", "37"]`.
+Holdeplassene ligger under `bus.stops`. Hver har en Entur-id som
+`NSR:StopPlace:58366`, et valgfritt `name` (ellers brukes navnet fra Entur) og
+et valgfritt `line_filter`, f.eks. `["31", "37"]`. Finn id-ene med
+`python scripts/find_stop.py "Holdeplassnavn"`. En `NSR:Quay:`-id gir bare én
+retning/plattform (`--quays` viser dem).
+
+```yaml
+bus:
+  stops:
+    - stop_place_id: NSR:StopPlace:xxxxx
+      name: Dælenenga
+    - stop_place_id: NSR:StopPlace:yyyyy
+      name: Kjøbenhavngata
+```
+
+Kortet `bus` viser alle holdeplassene under hverandre. Vil du ha ett kort per
+holdeplass, bruk `bus1`, `bus2` osv. i layouten (nummeret er plassen i lista):
+
+```yaml
+dashboard:
+  layout:
+    - "lights lights bus1"
+    - "lights lights bus2"
+    - "lights lights weather"
+```
 
 ### Vær
 

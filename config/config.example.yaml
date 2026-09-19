@@ -48,14 +48,19 @@ lights:
 
 bus:
   enabled: true
-  # Finn din holdeplass med:  python scripts/find_stop.py "Navn på holdeplass"
-  stop_place_id: NSR:StopPlace:58366   # Jernbanetorget (eksempel)
-  stop_name: null                       # null = bruk navnet fra Entur
+  # Én eller flere holdeplasser. Finn id med:  python scripts/find_stop.py "Navn"
+  # Med flere holdeplasser viser kortet "bus" alle, mens "bus1", "bus2" ... i
+  # layouten gir ett kort per holdeplass.
+  stops:
+    - stop_place_id: NSR:StopPlace:58366   # Jernbanetorget (eksempel – bytt til din)
+      name: null                            # null = navnet fra Entur
+      line_filter: []                       # f.eks. ["31", "37"] for å vise bare disse
+    # - stop_place_id: NSR:StopPlace:xxxxx
+    #   name: Kjøbenhavngata
   client_name: privat-hjemmepanel       # Entur krever en identifikator (firma-app)
   number_of_departures: 10
   time_range_seconds: 7200
   refresh_seconds: 30
-  line_filter: []                       # f.eks. ["31", "37"] for å vise bare disse
 
 weather:
   enabled: true

@@ -24,6 +24,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -38,9 +39,9 @@ SCENE_ICONS = ["moon", "film", "off", "sun", "star", "coffee", "book", "party"]
 class SceneState(BaseModel):
     """Ønsket tilstand for én pære i en scene."""
     on: bool = True
-    brightness: int | None = Field(default=None, ge=0, le=100)
-    colortemp: int | None = Field(default=None, ge=1000, le=10000)
-    rgb: list[int] | None = None
+    brightness: Optional[int] = Field(default=None, ge=0, le=100)
+    colortemp: Optional[int] = Field(default=None, ge=1000, le=10000)
+    rgb: Optional[list[int]] = None
 
     @field_validator("rgb")
     @classmethod
@@ -59,7 +60,7 @@ class Scene(BaseModel):
     id: str
     name: str
     icon: str = "star"
-    default: SceneState | None = None
+    default: Optional[SceneState] = None
     bulbs: dict[str, SceneState] = Field(default_factory=dict)
 
     @field_validator("id")
@@ -96,7 +97,7 @@ class SceneStore:
 
     def __init__(self, path: Path):
         self.path = path
-        self._mtime: float | None = None
+        self._mtime: Optional[float] = None
         self._data = ScenesFile()
         self._ensure_file()
         self._reload_if_changed()
