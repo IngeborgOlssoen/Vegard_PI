@@ -115,9 +115,10 @@ function startCard(card, el, config) {
   async function loop() {
     ctx.setStatus('Oppdaterer', { loading: true });
     try {
-      await card.refresh(ctx);
+      const result = await card.refresh(ctx);
       markOnline();
-      ctx.setError('');
+      // Et kort kan returnere { warning: '...' } for å vise en advarsel uten å regnes som feilet
+      ctx.setError(result?.warning || '');
       ctx.setStatus(`Oppdatert ${timeNow()}`);
       entry.timer = refreshMs > 0 ? setTimeout(loop, refreshMs) : null;
     } catch (err) {

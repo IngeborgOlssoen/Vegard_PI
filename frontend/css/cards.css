@@ -202,3 +202,54 @@
 .dep-time.is-now { color: var(--accent); }
 .dep-time.is-scheduled { color: var(--muted); font-weight: 500; font-size: 1.1rem; }
 .dep-row.is-cancelled .dep-dest, .dep-row.is-cancelled .dep-time { text-decoration: line-through; color: var(--danger); }
+
+/* ======================================================================
+   Vær (cards/weather.js)
+   ====================================================================== */
+.weather { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+.temp-plus { color: #ff7a7a; }
+.temp-minus { color: #6fb7ff; }
+
+.weather-now { display: flex; align-items: center; gap: 14px; }
+.weather-now-icon svg { width: 66px; height: 66px; display: block; }
+.weather-temp { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+.weather-desc { color: var(--muted); margin-top: 4px; }
+.weather-now-details {
+  margin-left: auto;
+  text-align: right;
+  color: var(--muted);
+  font-size: .9rem;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.weather-now-details svg { width: 20px; height: 20px; vertical-align: -4px; margin-right: 6px; }
+
+.weather-hours {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.weather-hour { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: .9rem; }
+.weather-hour svg { width: 32px; height: 32px; }
+.wh-time { color: var(--muted); }
+.wh-temp { font-weight: 700; }
+.wh-precip { color: var(--info); font-size: .8rem; min-height: 1.1em; white-space: nowrap; }
+
+.weather-days { display: flex; flex-direction: column; gap: 6px; }
+.weather-day {
+  display: grid;
+  grid-template-columns: 92px 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: .95rem;
+}
+.weather-day svg { width: 30px; height: 30px; }
+.wd-label { font-weight: 600; white-space: nowrap; }
+.wd-temp { font-weight: 700; white-space: nowrap; }
+.wd-precip { color: var(--info); text-align: right; white-space: nowrap; min-width: 56px; }
