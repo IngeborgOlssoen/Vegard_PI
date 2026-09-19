@@ -5,7 +5,7 @@ Bruk:
     python scripts/find_stop.py "Jernbanetorget"
     python scripts/find_stop.py "Majorstuen" --quays     # vis også plattformer
 
-Lim id-en (NSR:StopPlace:xxxxx) inn i config.yaml under bus.stop_place_id.
+Legg id-en (NSR:StopPlace:xxxxx) inn under bus.stops i config.yaml.
 """
 import json
 import sys
@@ -52,7 +52,7 @@ def main() -> None:
             for quay in place.get("quays") or []:
                 print(f"      {quay['id']:<20} plattform {quay.get('publicCode') or '?'} {quay.get('description') or ''}")
 
-    print("\nSett bus.stop_place_id i config/config.yaml til id-en som passer.")
+    print("\nLegg id-en inn under bus.stops i config/config.yaml (se README for eksempel).")
 
 
 if __name__ == "__main__":
