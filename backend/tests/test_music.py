@@ -203,3 +203,77 @@ async def test_clear_message_when_spotify_does_not_know_the_room():
     with pytest.raises(ServiceError) as exc:
         await music.next()
     assert "kjenner ikke rommet «Stue»" in exc.value.message
+
+
+class _FakeAvTransport:
+    """Later som Sonos: bare riktig (type, konto)-token gir sanger i køen."""
+    def __init__(self, working):
+        self.working = working
+        self.calls = []
+
+    def AddURIToQueue(self, args):
+        params = dict(args)
+        self.calls.append(params)
+        meta = params["EnqueuedURIMetaData"]
+        ok = any(f"SA_RINCON{s}_X_#Svc{s}-{a}-Token" in meta for s, a in self.working)
+        return {"NumTracksAdded": "42" if ok else "0", "FirstTrackNumberEnqueued": "1"}
+
+
+class _FakeZone:
+    def __init__(self, working):
+        self.avTransport = _FakeAvTransport(working)
+        self.cleared = 0
+
+    def clear_queue(self):
+        self.cleared += 1
+
+
+def test_enqueue_tries_spotify_variants_until_tracks_arrive():
+    from app.services.sonos import enqueue_spotify
+
+    zone = _FakeZone(working=[("3079", "1")])
+    added = enqueue_spotify(zone, "spotify:playlist:abc123", candidates=[("2311", "0"), ("3079", "0"), ("3079", "1")])
+    assert added == 42 and len(zone.avTransport.calls) == 3 and zone.cleared == 2
+    first = zone.avTransport.calls[0]
+    assert first["EnqueuedURI"] == "x-rincon-cpcontainer:1006206cspotify%3aplaylist%3aabc123"
+    assert "object.container.playlistContainer" in first["EnqueuedURIMetaData"]
+
+    # Nettlenke virker også, og ukjent lenke avvises
+    zone = _FakeZone(working=[("2311", "0")])
+    assert enqueue_spotify(zone, "https://open.spotify.com/album/xyz?si=1", candidates=[("2311", "0")]) == 42
+    with pytest.raises(ServiceError):
+        enqueue_spotify(zone, "https://example.com/ikke-spotify", candidates=[("2311", "0")])
+    assert enqueue_spotify(_FakeZone(working=[]), "spotify:track:t", candidates=[("2311", "0")]) == 0
+
+
+class _SonosEmptyQueue:
+    async def play(self, context_uri=None, device_id=None):
+        raise ServiceError("Sonos la ikke sangene i køen.", code="sonos_enqueue_failed")
+
+    async def state(self):
+        from app.services.spotify import Device, PlayerState
+        return PlayerState(active=False, device=Device(id="x", name="Cocina"))
+
+
+class _SpotifyConnect:
+    logged_in = True
+
+    def __init__(self, knows_room):
+        self.knows_room = knows_room
+        self.played = []
+
+    async def activate_device_by_name(self, name):
+        return self.knows_room
+
+    async def play(self, context_uri=None, device_id=None):
+        self.played.append(context_uri)
+
+
+async def test_play_falls_back_to_spotify_connect_when_queue_stays_empty():
+    spotify = _SpotifyConnect(knows_room=True)
+    await MusicService(sonos=_SonosEmptyQueue(), spotify=spotify).play("spotify:playlist:p")
+    assert spotify.played == ["spotify:playlist:p"]
+
+    with pytest.raises(ServiceError) as exc:
+        await MusicService(sonos=_SonosEmptyQueue(), spotify=_SpotifyConnect(knows_room=False)).play("spotify:playlist:p")
+    assert "Cocina" in exc.value.message

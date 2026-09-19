@@ -102,10 +102,23 @@ class MusicService:
             await getattr(self.spotify, name)(*args)
 
     async def play(self, context_uri: Optional[str] = None, device_id: Optional[str] = None) -> None:
-        if context_uri:
-            await self._player().play(context_uri, device_id)   # ny spilleliste går alltid til Sonos-køen
-        else:
+        if not context_uri:
             await self._transport("play", None, device_id)
+            return
+        try:
+            await self._player().play(context_uri, device_id)   # ny spilleliste går først til Sonos-køen
+        except ServiceError as exc:
+            if exc.code != "sonos_enqueue_failed" or self.spotify is None or not self.spotify.logged_in:
+                raise
+            # Sonos fikk ikke lagt sangene i køen – prøv å starte den via Spotify Connect i samme rom
+            state = await self.sonos.state()
+            room = state.device.name.split(" + ")[0] if state.device else None
+            log.info("Sonos-køen ble tom, prøver Spotify Connect i «%s»", room)
+            if room and await self.spotify.activate_device_by_name(room):
+                await self.spotify.play(context_uri)
+                return
+            raise ServiceError(f"{exc.message} (Spotify kjenner heller ikke rommet «{room}» akkurat nå.)",
+                               code=exc.code)
 
     async def pause(self) -> None:
         await self._transport("pause")

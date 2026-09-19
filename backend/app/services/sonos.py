@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import re
 import time
 from typing import Optional
 
@@ -54,6 +55,77 @@ def group_name(coordinator_name: str, member_names: list[str]) -> str:
     """"Stue + Kjøkken" for en gruppe, bare "Stue" for et enkelt rom."""
     others = [n for n in member_names if n != coordinator_name]
     return " + ".join([coordinator_name] + sorted(others))
+
+
+# Sonos har to varianter av Spotify-tjenesten. Hvilken (og hvilket kontonummer)
+# et system bruker, står i høyttalerens kontoliste. Legger vi spillelista i køen
+# med feil variant, godtar Sonos den, men uten sanger – derfor prøver vi
+# varianter til det faktisk kommer sanger i køen.
+SPOTIFY_SERVICE_TYPES = ("2311", "3079")
+SPOTIFY_URI = re.compile(r"spotify.*[:/](album|playlist|track|episode|show)[:/](\w+)")
+DIDL_TEMPLATE = (
+    '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+    'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
+    'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+    'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+    '<item id="{item_id}" parentID="-1" restricted="true"><dc:title>{title}</dc:title>'
+    "<upnp:class>{item_class}</upnp:class>"
+    '<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">'
+    "SA_RINCON{service}_X_#Svc{service}-{account}-Token</desc></item></DIDL-Lite>"
+)
+
+
+def spotify_accounts(zone) -> list[tuple[str, str]]:
+    """(tjenestetype, kontonummer) for Spotify-kontoene i Sonos-systemet, fra høyttaleren."""
+    try:
+        from soco.music_services.accounts import Account
+        accounts = Account.get_accounts(zone)
+    except Exception as exc:  # eldre/nyere firmware uten kontolista – vi prøver standardene
+        log.info("Sonos: fikk ikke lest kontolista (%s), prøver standardvarianter", exc)
+        return []
+    found = [(acc.service_type, sn) for sn, acc in accounts.items()
+             if acc.service_type in SPOTIFY_SERVICE_TYPES and not getattr(acc, "deleted", False)]
+    return sorted(found, key=lambda t: int(t[1]) if str(t[1]).isdigit() else 99)
+
+
+def enqueue_spotify(coord, uri: str, title: str = "", candidates: Optional[list] = None) -> int:
+    """Legger en Spotify-spilleliste/-album/-sang i køen til `coord` og returnerer
+    antall sanger som kom inn. Prøver konto-variantene i `candidates` (ellers de
+    som leses fra høyttaleren + standardene) til Sonos legger inn sanger."""
+    from soco.plugins.sharelink import SpotifyShare
+
+    m = SPOTIFY_URI.search(uri)
+    if not m:
+        raise ServiceError("Dette er ikke en Spotify-lenke Sonos forstår", code="sonos_bad_uri", status=400)
+    kind, ident = m.group(1), m.group(2)
+    encoded = f"spotify%3a{kind}%3a{ident}"
+    magic = SpotifyShare.magic()[kind]
+
+    if candidates is None:
+        candidates = spotify_accounts(coord)
+        for service in SPOTIFY_SERVICE_TYPES:
+            for account in ("0", "1", "2"):
+                if (service, account) not in candidates:
+                    candidates.append((service, account))
+
+    for service, account in candidates:
+        metadata = DIDL_TEMPLATE.format(item_id=magic["key"] + encoded, title=title, item_class=magic["class"],
+                                        service=service, account=account)
+        try:
+            response = coord.avTransport.AddURIToQueue([
+                ("InstanceID", 0), ("EnqueuedURI", magic["prefix"] + encoded), ("EnqueuedURIMetaData", metadata),
+                ("DesiredFirstTrackNumberEnqueued", 0), ("EnqueueAsNext", 0),
+            ])
+        except Exception as exc:
+            log.info("Sonos: kø-legging med Spotify-variant %s/%s avvist: %s", service, account, exc)
+            continue
+        added = int(response.get("NumTracksAdded") or 0)
+        if added > 0:
+            log.info("Sonos: la %d sanger i køen (Spotify-variant %s, konto %s)", added, service, account)
+            return added
+        log.info("Sonos: Spotify-variant %s/%s ga ingen sanger, prøver neste", service, account)
+        coord.clear_queue()
+    return 0
 
 
 class SonosService:
@@ -204,12 +276,13 @@ class SonosService:
     # --- styring ----------------------------------------------------------------
 
     def _play_sync(self, context_uri: Optional[str]) -> None:
-        from soco.plugins.sharelink import ShareLinkPlugin
-
         coord = self._target_sync()
         if context_uri:
             coord.clear_queue()
-            ShareLinkPlugin(coord).add_share_link_to_queue(context_uri)
+            added = enqueue_spotify(coord, context_uri)
+            if added == 0:
+                raise ServiceError("Sonos la ikke sangene i køen. Er Spotify lagt til i Sonos-appen med samme "
+                                   "konto som spillelistene kommer fra?", code="sonos_enqueue_failed")
             coord.play_from_queue(0)
             self._last_context = context_uri
         else:

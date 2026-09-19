@@ -275,6 +275,12 @@ backend. Vil du se siden på PC uten høyttalere, sett `sonos.simulate: true` og
 det allerede musikk, blir rommet med i gruppa; trykk igjen for å ta det ut.
 Hver rad har sin egen volumskyver, og skyveren på hovedsiden styrer hele gruppa.
 
+**Feilsøking:** `python scripts/sonos_check.py` viser rommene slik panelet ser
+dem, hvilken Spotify-variant Sonos-systemet bruker og hva som spilles.
+`--play spotify:playlist:<id>` prøver å legge ei liste i køen og sier hvor mange
+sanger som kom inn. Kommer det ingen, er Spotify ikke lagt til i Sonos-appen
+med kontoen spillelistene tilhører.
+
 **Uten Sonos:** med bare `spotify.enabled` går avspillingen via Spotify Connect,
 som virker for mange andre høyttalere. `python scripts/spotify_status.py` viser
 hva Spotify svarer, inkludert hvilke høyttalere den kjenner til.
